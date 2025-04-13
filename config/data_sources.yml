@@ -147,7 +147,24 @@ kafka_sources:
     options:
       includeHeaders: true
 
-# Elasticsearch configuration
+# Hive configuration (primary data store)
+hive:
+  name: "hive_default"
+  type: "hive"
+  database: "${HIVE_DATABASE:default}"
+  host: "${HIVE_HOST:localhost}"
+  port: ${HIVE_PORT:10000}
+  auth_mechanism: "${HIVE_AUTH:NONE}"
+  username: "${HIVE_USERNAME}"
+  password: "${HIVE_PASSWORD}"
+  save_mode: "append"
+  table_prefix: "data_"
+  partition_columns:
+    - "year"
+    - "month"
+    - "day"
+
+# Elasticsearch configuration (optional secondary data store)
 elasticsearch:
   hosts:
     - "http://${ES_HOST:localhost}:${ES_PORT:9200}"

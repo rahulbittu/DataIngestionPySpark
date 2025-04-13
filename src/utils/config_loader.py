@@ -152,6 +152,21 @@ class ConfigLoader:
         
         return None
         
+    def get_hive_config(self) -> Optional[Dict[str, Any]]:
+        """
+        Get Hive configuration.
+        
+        Returns:
+            Optional[Dict[str, Any]]: Hive configuration or None if not found
+        """
+        hive_config = self.config.get('hive', None)
+        
+        if hive_config:
+            # Resolve any environment variables in the config
+            hive_config = self.resolve_env_vars_in_config(hive_config)
+            
+        return hive_config
+        
     def get_elasticsearch_config(self) -> Optional[Dict[str, Any]]:
         """
         Get Elasticsearch configuration.
