@@ -121,8 +121,17 @@ def run_pipeline():
         # Load configuration
         config_loader = ConfigLoader(args.config)
         
+        # Check if Elasticsearch configuration exists
+        use_elasticsearch = config_loader.get_elasticsearch_config() is not None
+        logger.info(f"Elasticsearch integration is {'enabled' if use_elasticsearch else 'disabled'}")
+        
         # Create and run pipeline
-        pipeline = DataIngestionPipeline(spark, config_loader, logger)
+        pipeline = DataIngestionPipeline(
+            spark, 
+            config_loader, 
+            logger,
+            use_elasticsearch=use_elasticsearch
+        )
         
         # Run pipeline for all sources or a specific source
         if args.source:
@@ -289,8 +298,18 @@ def run_streaming_pipeline():
             schema_registry.start_schema_monitoring()
             logger.info("Automatic schema evolution monitoring started")
         
+        # Check if Elasticsearch configuration exists
+        use_elasticsearch = config_loader.get_elasticsearch_config() is not None
+        logger.info(f"Elasticsearch integration is {'enabled' if use_elasticsearch else 'disabled'}")
+        
         # Create pipeline
-        pipeline = DataIngestionPipeline(spark, config_loader, logger, schema_registry=schema_registry)
+        pipeline = DataIngestionPipeline(
+            spark, 
+            config_loader, 
+            logger, 
+            schema_registry=schema_registry,
+            use_elasticsearch=use_elasticsearch
+        )
         
         # Choose processing mode based on arguments
         if args.event_mode:

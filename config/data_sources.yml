@@ -146,3 +146,21 @@ kafka_sources:
     starting_offsets: "earliest"
     options:
       includeHeaders: true
+
+# Elasticsearch configuration
+elasticsearch:
+  hosts:
+    - "http://${ES_HOST:localhost}:${ES_PORT:9200}"
+  username: "${ES_USERNAME}"
+  password: "${ES_PASSWORD}"
+  verify_certs: true
+  indices:
+    metrics: "data-pipeline-metrics"
+    bronze: "bronze-data"
+    silver: "silver-data"
+    gold: "gold-data"
+    rejected: "rejected-data"
+  options:
+    refresh_on_write: true
+    number_of_shards: 1
+    number_of_replicas: 0

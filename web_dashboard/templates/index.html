@@ -145,6 +145,58 @@
             </div>
         </div>
     </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">Elasticsearch Integration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Status</h5>
+                                    {% if elasticsearch_enabled %}
+                                    <span class="badge bg-success">Enabled</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Disabled</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Elasticsearch Dashboards</h5>
+                                    <p>The data ingestion pipeline now integrates with Elasticsearch for robust data storage and visualization.</p>
+                                    
+                                    <div class="list-group">
+                                        {% if elasticsearch_enabled %}
+                                        <a href="{{ elasticsearch_kibana_url }}/app/dashboards#/view/pipeline-overview" class="list-group-item list-group-item-action" target="_blank">
+                                            <i class="bi bi-graph-up me-2"></i> Pipeline Overview Dashboard
+                                        </a>
+                                        <a href="{{ elasticsearch_kibana_url }}/app/dashboards#/view/data-quality-metrics" class="list-group-item list-group-item-action" target="_blank">
+                                            <i class="bi bi-check-circle me-2"></i> Data Quality Metrics
+                                        </a>
+                                        <a href="{{ elasticsearch_kibana_url }}/app/dashboards#/view/source-monitoring" class="list-group-item list-group-item-action" target="_blank">
+                                            <i class="bi bi-hdd-stack me-2"></i> Source Monitoring
+                                        </a>
+                                        {% else %}
+                                        <div class="list-group-item disabled">
+                                            <i class="bi bi-exclamation-triangle me-2"></i> Elasticsearch integration is not configured
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
