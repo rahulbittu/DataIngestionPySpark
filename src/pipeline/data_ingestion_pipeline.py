@@ -8,6 +8,7 @@ import os
 import time
 import logging
 import threading
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple, Callable, Union
 
 from pyspark.sql import DataFrame, SparkSession
@@ -20,6 +21,7 @@ from src.connectors import (
     APIConnector,
     KafkaConnector
 )
+from src.connectors.elasticsearch_connector import ElasticsearchConnector
 from src.classifiers import DataClassifier
 from src.utils.config_loader import ConfigLoader
 from src.utils.logging_utils import log_dataframe_info, log_metrics
@@ -36,7 +38,8 @@ class DataIngestionPipeline:
         spark: SparkSession,
         config_loader: ConfigLoader,
         logger: Optional[logging.Logger] = None,
-        schema_registry = None
+        schema_registry = None,
+        use_elasticsearch: bool = False
     ):
         """
         Initialize the data ingestion pipeline.
@@ -46,11 +49,13 @@ class DataIngestionPipeline:
             config_loader: Configuration loader
             logger: Logger instance
             schema_registry: Optional schema registry for schema validation and evolution
+            use_elasticsearch: Whether to use Elasticsearch for storing data and metrics
         """
         self.spark = spark
         self.config_loader = config_loader
         self.logger = logger or logging.getLogger(__name__)
         self.schema_registry = schema_registry
+        self.use_elasticsearch = use_elasticsearch
         
         # Get classification thresholds
         self.classification_thresholds = config_loader.get_classification_thresholds()
@@ -60,6 +65,11 @@ class DataIngestionPipeline:
         
         # Create connector registry
         self.connectors = {}
+        
+        # Initialize Elasticsearch connector if enabled
+        self.es_connector = None
+        if use_elasticsearch:
+            self._init_elasticsearch_connector()
         
         # Initialize metrics
         self.pipeline_metrics = {
@@ -74,6 +84,94 @@ class DataIngestionPipeline:
             'end_time': None,
             'duration_seconds': 0
         }
+    
+    def _init_elasticsearch_connector(self):
+        """
+        Initialize the Elasticsearch connector based on configuration.
+        """
+        try:
+            # Get Elasticsearch configuration from the config loader
+            es_config = self.config_loader.get_elasticsearch_config()
+            
+            if not es_config:
+                self.logger.warning("Elasticsearch is enabled but no configuration found. Using default values.")
+                es_config = {
+                    'hosts': ['http://localhost:9200']
+                }
+                
+            # Create the connector
+            self.es_connector = ElasticsearchConnector(es_config, self.logger)
+            
+            # Test connection
+            if self.es_connector.connect():
+                self.logger.info("Successfully connected to Elasticsearch")
+            else:
+                self.logger.error("Failed to connect to Elasticsearch. Some features may not work properly.")
+                
+        except Exception as e:
+            self.logger.error(f"Error initializing Elasticsearch connector: {str(e)}")
+            self.use_elasticsearch = False
+    
+    def _save_classified_data_to_elasticsearch(
+        self, 
+        df: DataFrame, 
+        classification: str, 
+        source_name: str
+    ) -> bool:
+        """
+        Save classified data to Elasticsearch.
+        
+        Args:
+            df: DataFrame to save
+            classification: Classification level (bronze, silver, gold, rejected)
+            source_name: Name of the data source
+            
+        Returns:
+            bool: True if save was successful, False otherwise
+        """
+        if not self.use_elasticsearch or not self.es_connector:
+            return False
+            
+        try:
+            # Index name format: {classification}_{source_name}_{date}
+            # e.g., gold_customer_data_2025-04-13
+            today = datetime.now().strftime('%Y-%m-%d')
+            index_name = f"{classification}_{source_name}_{today}"
+            
+            self.logger.info(f"Indexing {classification} data from {source_name} to Elasticsearch index: {index_name}")
+            
+            # Index data in Elasticsearch
+            success, errors = self.es_connector.index_spark_dataframe(df, index_name)
+            
+            if success > 0:
+                self.logger.info(f"Successfully indexed {success} documents to Elasticsearch index: {index_name}")
+                return True
+            else:
+                self.logger.error(f"Failed to index data to Elasticsearch index: {index_name}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error indexing data to Elasticsearch: {str(e)}")
+            return False
+            
+    def send_metrics_to_elasticsearch(self, metrics: Dict[str, Any]) -> bool:
+        """
+        Send metrics to Elasticsearch for visualization in Kibana.
+        
+        Args:
+            metrics: Metrics to send
+            
+        Returns:
+            bool: True if metrics were sent successfully, False otherwise
+        """
+        if not self.use_elasticsearch or not self.es_connector:
+            return False
+            
+        try:
+            return self.es_connector.index_metrics(metrics)
+        except Exception as e:
+            self.logger.error(f"Error sending metrics to Elasticsearch: {str(e)}")
+            return False
     
     def _create_connector(self, source_config: Dict[str, Any], source_type: str):
         """
@@ -199,9 +297,17 @@ class DataIngestionPipeline:
             # Add classification metadata
             df_with_metadata = classifier.add_classification_metadata(df, classification, metrics)
             
-            # Save classified data
-            if not self._save_classified_data(df_with_metadata, classification, source_name):
-                self.logger.error(f"Failed to save classified data for {source_name}")
+            # Save classified data to file system
+            file_save_success = self._save_classified_data(df_with_metadata, classification, source_name)
+            
+            # Save to Elasticsearch if enabled
+            es_save_success = True
+            if self.use_elasticsearch:
+                es_save_success = self._save_classified_data_to_elasticsearch(df_with_metadata, classification, source_name)
+                
+            # If both saves failed, return error
+            if not file_save_success and not es_save_success:
+                self.logger.error(f"Failed to save classified data for {source_name} to any destination")
                 return False, metrics
             
             # Update metrics

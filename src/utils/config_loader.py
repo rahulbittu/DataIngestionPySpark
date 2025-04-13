@@ -151,3 +151,18 @@ class ConfigLoader:
                 return source
         
         return None
+        
+    def get_elasticsearch_config(self) -> Optional[Dict[str, Any]]:
+        """
+        Get Elasticsearch configuration.
+        
+        Returns:
+            Optional[Dict[str, Any]]: Elasticsearch configuration or None if not found
+        """
+        es_config = self.config.get('elasticsearch', None)
+        
+        if es_config:
+            # Resolve any environment variables in the config
+            es_config = self.resolve_env_vars_in_config(es_config)
+            
+        return es_config
