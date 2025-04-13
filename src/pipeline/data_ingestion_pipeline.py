@@ -22,6 +22,7 @@ from src.connectors import (
     KafkaConnector
 )
 from src.connectors.elasticsearch_connector import ElasticsearchConnector
+from src.connectors.hive_connector import HiveConnector
 from src.classifiers import DataClassifier
 from src.utils.config_loader import ConfigLoader
 from src.utils.logging_utils import log_dataframe_info, log_metrics
@@ -66,7 +67,11 @@ class DataIngestionPipeline:
         # Create connector registry
         self.connectors = {}
         
-        # Initialize Elasticsearch connector if enabled
+        # Initialize Hive connector (primary data store)
+        self.hive_connector = None
+        self._init_hive_connector()
+        
+        # Initialize Elasticsearch connector if enabled (secondary/optional data store)
         self.es_connector = None
         if use_elasticsearch:
             self._init_elasticsearch_connector()
@@ -84,6 +89,46 @@ class DataIngestionPipeline:
             'end_time': None,
             'duration_seconds': 0
         }
+    
+    def _init_hive_connector(self):
+        """
+        Initialize the Hive connector based on configuration.
+        """
+        try:
+            # Get Hive configuration from the config loader
+            # First check if there's a specific hive_config section
+            hive_config = self.config_loader.get_hive_config()
+            
+            if not hive_config:
+                self.logger.warning("No Hive configuration found. Using default values.")
+                # Create a default Hive configuration
+                hive_config = {
+                    'name': 'hive_default',
+                    'type': 'hive',
+                    'database': 'default',
+                    'host': 'localhost',
+                    'port': 10000,
+                    'auth_mechanism': 'NONE',
+                    'save_mode': 'append',
+                    'table_prefix': '',
+                    'partition_columns': ['year', 'month', 'day']
+                }
+                
+            # Create the connector
+            self.hive_connector = HiveConnector(self.spark, hive_config, self.logger)
+            
+            # Test connection (this might fail in environments without Hive)
+            try:
+                if self.hive_connector.connect():
+                    self.logger.info("Successfully connected to Hive")
+                else:
+                    self.logger.warning("Failed to connect to Hive. File-based storage will be used as fallback.")
+            except Exception as hive_conn_error:
+                self.logger.warning(f"Could not connect to Hive: {str(hive_conn_error)}. File-based storage will be used as fallback.")
+                
+        except Exception as e:
+            self.logger.error(f"Error initializing Hive connector: {str(e)}")
+            self.logger.warning("File-based storage will be used as fallback.")
     
     def _init_elasticsearch_connector(self):
         """
@@ -207,7 +252,7 @@ class DataIngestionPipeline:
         source_name: str
     ) -> bool:
         """
-        Save classified data to the appropriate target path.
+        Save classified data to both Hive (primary) and the file system (fallback).
         
         Args:
             df: DataFrame to save
@@ -217,33 +262,62 @@ class DataIngestionPipeline:
         Returns:
             bool: True if save was successful, False otherwise
         """
-        if classification not in self.target_paths:
-            self.logger.error(f"No target path defined for classification level: {classification}")
-            return False
+        # Add additional metadata
+        output_df = df.withColumn("ingestion_timestamp", current_timestamp()) \
+            .withColumn("classification_level", lit(classification))
         
-        target_base_path = self.target_paths.get(classification)
-        target_path = os.path.join(target_base_path, source_name)
+        # Try to save to Hive first (primary storage)
+        hive_save_success = False
+        if self.hive_connector:
+            try:
+                self.logger.info(f"Saving {classification} data from {source_name} to Hive")
+                hive_save_success = self.hive_connector.write_data(
+                    output_df, 
+                    classification,
+                    source_name,
+                    timestamp=datetime.now().strftime('%Y-%m-%d')
+                )
+                
+                if hive_save_success:
+                    self.logger.info(f"Successfully saved {classification} data from {source_name} to Hive")
+                else:
+                    self.logger.warning(f"Failed to save {classification} data from {source_name} to Hive. Will try file system storage.")
+            except Exception as e:
+                self.logger.error(f"Error saving {classification} data to Hive: {str(e)}")
+                self.logger.warning("Falling back to file system storage")
         
-        try:
-            # Save data in parquet format
-            self.logger.info(f"Saving {classification} data from {source_name} to {target_path}")
+        # If Hive save fails or is not configured, save to file system as fallback
+        if not hive_save_success:
+            if classification not in self.target_paths:
+                self.logger.error(f"No target path defined for classification level: {classification}")
+                return False
             
-            # Add additional metadata
-            output_df = df.withColumn("ingestion_timestamp", current_timestamp()) \
-                .withColumn("classification_level", lit(classification))
+            target_base_path = self.target_paths.get(classification)
+            # Handle cases where target_base_path might be None
+            if target_base_path is None:
+                self.logger.error(f"Target base path for {classification} is None")
+                return False
+                
+            target_path = os.path.join(target_base_path, source_name)
             
-            # Write data
-            output_df.write \
-                .mode("overwrite") \
-                .partitionBy("ingestion_timestamp") \
-                .parquet(target_path)
-            
-            self.logger.info(f"Successfully saved {classification} data from {source_name} to {target_path}")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error saving {classification} data from {source_name}: {str(e)}")
-            return False
+            try:
+                # Save data in parquet format
+                self.logger.info(f"Saving {classification} data from {source_name} to {target_path}")
+                
+                # Write data
+                output_df.write \
+                    .mode("overwrite") \
+                    .partitionBy("ingestion_timestamp") \
+                    .parquet(target_path)
+                
+                self.logger.info(f"Successfully saved {classification} data from {source_name} to {target_path}")
+                return True
+                
+            except Exception as e:
+                self.logger.error(f"Error saving {classification} data from {source_name} to file system: {str(e)}")
+                return False
+        
+        return hive_save_success
     
     def process_source(
         self, 
@@ -463,7 +537,7 @@ class DataIngestionPipeline:
         trigger_interval: Optional[str] = None
     ) -> StreamingQuery:
         """
-        Save classified streaming data to the appropriate target path.
+        Save classified streaming data to both Hive (if available) and the file system.
         
         Args:
             streaming_df: Streaming DataFrame to save
@@ -479,10 +553,41 @@ class DataIngestionPipeline:
         Raises:
             ValueError: If there's no target path for the classification level
         """
+        # Try Hive streaming first if available
+        if self.hive_connector and hasattr(self.hive_connector, 'write_streaming'):
+            try:
+                # Add additional metadata
+                output_df = streaming_df.withColumn("ingestion_timestamp", current_timestamp()) \
+                    .withColumn("classification_level", lit(classification))
+                
+                actual_query_name = query_name or f"hive-save-{classification}-data-{source_name}"
+                checkpoint_location = os.path.join(checkpoint_dir, actual_query_name)
+                
+                self.logger.info(f"Starting streaming query to save {classification} data from {source_name} to Hive")
+                
+                # Use Hive connector to write streaming data
+                query = self.hive_connector.write_streaming(
+                    output_df,
+                    classification,
+                    source_name,
+                    checkpoint_location,
+                    query_name=actual_query_name,
+                    trigger_interval=trigger_interval
+                )
+                
+                return query
+            except Exception as e:
+                self.logger.error(f"Error saving streaming data to Hive: {str(e)}")
+                self.logger.warning("Falling back to file system storage for streaming data")
+        
+        # File system fallback
         if classification not in self.target_paths:
             raise ValueError(f"No target path defined for classification level: {classification}")
         
         target_base_path = self.target_paths.get(classification)
+        if target_base_path is None:
+            raise ValueError(f"Target base path for {classification} is None")
+            
         target_path = os.path.join(target_base_path, source_name)
         
         # Add additional metadata
@@ -490,7 +595,7 @@ class DataIngestionPipeline:
             .withColumn("classification_level", lit(classification))
         
         # Create query name if not provided
-        actual_query_name = query_name or f"save-{classification}-data-{source_name}"
+        actual_query_name = query_name or f"file-save-{classification}-data-{source_name}"
         checkpoint_location = os.path.join(checkpoint_dir, actual_query_name)
         
         # Create the streaming writer
