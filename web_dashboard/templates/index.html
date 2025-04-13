@@ -1,383 +1,219 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Ingestion Dashboard</title>
-    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-</head>
-<body data-bs-theme="dark">
-    <nav class="navbar navbar-expand-lg bg-dark navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="/">Data Ingestion Pipeline</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/data_sources">Data Sources</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/monitoring">Monitoring</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% extends 'base.html' %}
 
-    <div class="container">
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Data Flow Diagram</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mermaid-container">
-                            <div class="mermaid">
-                                graph TD
-                                    A[Data Sources] --> B[Ingestion Layer]
-                                    
-                                    %% Data Sources
-                                    A --> C1[File Sources]
-                                    A --> C2[Database Sources]
-                                    A --> C3[API Sources]
-                                    A --> C4[Kafka Sources]
-                                    
-                                    %% Ingestion Process
-                                    B --> D[Data Classification]
-                                    D --> E1[Bronze]
-                                    D --> E2[Silver]
-                                    D --> E3[Gold]
-                                    D --> E4[Rejected]
-                                    
-                                    %% Classification Rules
-                                    F[Classification Rules] --> D
-                                    F1[Completeness] --> F
-                                    F2[Accuracy] --> F
-                                    F3[Timeliness] --> F
-                                    
-                                    %% Output
-                                    E1 --> G[Transform Layer]
-                                    E2 --> G
-                                    E3 --> G
-                                    
-                                    %% Monitoring
-                                    B --> H[Monitoring & Logging]
-                                    D --> H
-                            </div>
-                        </div>
-                    </div>
+{% block title %}Data Flow Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-5">Data Flow Dashboard</h1>
+            <p class="lead">Monitor your data ingestion and classification pipeline</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Sources</h5>
+                </div>
+                <div class="card-body">
+                    <div class="display-4">{{ source_status|length }}</div>
+                    <p class="card-text">Data Sources</p>
                 </div>
             </div>
         </div>
-
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card bg-primary text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Sources Processed</h6>
-                                <h2 class="mb-0">{{ pipeline_metrics.sources_processed }}</h2>
-                            </div>
-                            <i class="feather-icon" data-feather="database"></i>
-                        </div>
-                    </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0">Processed</h5>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Records Processed</h6>
-                                <h2 class="mb-0">{{ pipeline_metrics.records_processed|format_number }}</h2>
-                            </div>
-                            <i class="feather-icon" data-feather="file-text"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-dark">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Gold Records</h6>
-                                <h2 class="mb-0">{{ pipeline_metrics.gold_count|format_number }}</h2>
-                            </div>
-                            <i class="feather-icon" data-feather="award"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-danger text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Failed Sources</h6>
-                                <h2 class="mb-0">{{ pipeline_metrics.sources_failed }}</h2>
-                            </div>
-                            <i class="feather-icon" data-feather="alert-triangle"></i>
-                        </div>
-                    </div>
+                <div class="card-body">
+                    <div class="display-4">{{ pipeline_metrics.sources_processed|format_number }}</div>
+                    <p class="card-text">Sources Processed</p>
                 </div>
             </div>
         </div>
-
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Data Classification</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="classificationChart"></canvas>
-                    </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="card-title mb-0">Records</h5>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Source Types</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="sourceTypesChart"></canvas>
-                    </div>
+                <div class="card-body">
+                    <div class="display-4">{{ pipeline_metrics.records_processed|format_number }}</div>
+                    <p class="card-text">Records Processed</p>
                 </div>
             </div>
         </div>
-
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">Recent Source Activity</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Source Name</th>
-                                        <th>Type</th>
-                                        <th>Last Run</th>
-                                        <th>Status</th>
-                                        <th>Classification</th>
-                                        <th>Records</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for source in source_status[:5] %}
-                                    <tr>
-                                        <td>{{ source.name }}</td>
-                                        <td><span class="badge bg-secondary">{{ source.type }}</span></td>
-                                        <td>{{ source.last_run }}</td>
-                                        <td>
-                                            {% if source.status == 'success' %}
-                                            <span class="badge bg-success">Success</span>
-                                            {% elif source.status == 'failed' %}
-                                            <span class="badge bg-danger">Failed</span>
-                                            {% else %}
-                                            <span class="badge bg-secondary">Pending</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if source.classification == 'gold' %}
-                                            <span class="badge bg-warning text-dark">Gold</span>
-                                            {% elif source.classification == 'silver' %}
-                                            <span class="badge bg-light text-dark">Silver</span>
-                                            {% elif source.classification == 'bronze' %}
-                                            <span class="badge bg-secondary">Bronze</span>
-                                            {% elif source.classification == 'rejected' %}
-                                            <span class="badge bg-danger">Rejected</span>
-                                            {% else %}
-                                            <span class="badge bg-secondary">N/A</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ source.record_count|format_number }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <a href="/data_sources" class="btn btn-primary btn-sm mt-3">View All Sources</a>
-                    </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">Failed</h5>
+                </div>
+                <div class="card-body">
+                    <div class="display-4">{{ pipeline_metrics.sources_failed|format_number }}</div>
+                    <p class="card-text">Sources Failed</p>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title">System Information</h5>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Data Classification</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="classificationChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Classification</th>
+                                    <th>Last Run</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for source in source_status[:5] %}
+                                <tr>
+                                    <td>{{ source.name }}</td>
+                                    <td>{{ source.type }}</td>
+                                    <td>
+                                        {% if source.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                        {% elif source.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if source.classification == 'gold' %}
+                                        <span class="badge bg-warning">Gold</span>
+                                        {% elif source.classification == 'silver' %}
+                                        <span class="badge bg-secondary">Silver</span>
+                                        {% elif source.classification == 'bronze' %}
+                                        <span class="badge bg-dark">Bronze</span>
+                                        {% elif source.classification == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ source.last_run }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <table class="table">
-                                    <tbody>
-                                        <tr>
-                                            <th>Last Pipeline Run</th>
-                                            <td>{{ pipeline_metrics.last_run or 'Never' }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Bronze Records</th>
-                                            <td>{{ pipeline_metrics.bronze_count|format_number }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Silver Records</th>
-                                            <td>{{ pipeline_metrics.silver_count|format_number }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Gold Records</th>
-                                            <td>{{ pipeline_metrics.gold_count|format_number }}</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Rejected Records</th>
-                                            <td>{{ pipeline_metrics.rejected_count|format_number }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Classification Criteria</h6>
-                                <ul class="list-group">
-                                    <li class="list-group-item bg-dark">
-                                        <strong>Bronze</strong>: Basic completeness and minimal data quality
-                                    </li>
-                                    <li class="list-group-item bg-dark">
-                                        <strong>Silver</strong>: Good completeness and accuracy with reasonable timeliness
-                                    </li>
-                                    <li class="list-group-item bg-dark">
-                                        <strong>Gold</strong>: Excellent completeness, accuracy, and timeliness
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
+                    <div class="text-center mt-3">
+                        <a href="/data_sources" class="btn btn-primary">View All Sources</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <footer class="bg-dark text-light py-4 mt-5">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5>Data Ingestion Pipeline</h5>
-                    <p>A PySpark-based data ingestion and classification system for processing multi-source data in a Cloudera environment.</p>
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Data Flow Diagram</h5>
                 </div>
-                <div class="col-md-6 text-md-end">
-                    <p>© 2023 - PySpark Data Ingestion System</p>
+                <div class="card-body">
+                    <div id="dataFlowDiagram" class="mermaid">
+                        Loading diagram...
+                    </div>
                 </div>
             </div>
         </div>
-    </footer>
+    </div>
+</div>
+{% endblock %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    <script>
-        // Initialize Feather icons
-        feather.replace();
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@9.1.2/dist/mermaid.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Classification chart
+    const classificationData = {
+        labels: ['Gold', 'Silver', 'Bronze', 'Rejected'],
+        datasets: [{
+            label: 'Classification Distribution',
+            data: [
+                {{ pipeline_metrics.gold_count }}, 
+                {{ pipeline_metrics.silver_count }}, 
+                {{ pipeline_metrics.bronze_count }}, 
+                {{ pipeline_metrics.rejected_count }}
+            ],
+            backgroundColor: [
+                'rgba(255, 193, 7, 0.5)',  // Gold
+                'rgba(108, 117, 125, 0.5)', // Silver
+                'rgba(73, 80, 87, 0.5)',   // Bronze (dark)
+                'rgba(220, 53, 69, 0.5)'   // Red for rejected
+            ],
+            borderColor: [
+                'rgb(255, 193, 7)',   // Gold
+                'rgb(108, 117, 125)', // Silver
+                'rgb(73, 80, 87)',    // Bronze (dark)
+                'rgb(220, 53, 69)'    // Red for rejected
+            ],
+            borderWidth: 1
+        }]
+    };
 
-        // Initialize Mermaid diagram
-        mermaid.initialize({ 
-            startOnLoad: true,
-            theme: 'dark',
-            securityLevel: 'loose'
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Classification Chart
-            const classificationData = {
-                labels: ['Gold', 'Silver', 'Bronze', 'Rejected'],
-                datasets: [{
-                    data: [
-                        {{ pipeline_metrics.gold_count }},
-                        {{ pipeline_metrics.silver_count }},
-                        {{ pipeline_metrics.bronze_count }},
-                        {{ pipeline_metrics.rejected_count }}
-                    ],
-                    backgroundColor: [
-                        '#ffc107',  // Gold
-                        '#e9ecef',  // Silver
-                        '#6c757d',  // Bronze
-                        '#dc3545'   // Rejected
-                    ]
-                }]
-            };
-
-            const classificationChart = new Chart(
-                document.getElementById('classificationChart'),
-                {
-                    type: 'doughnut',
-                    data: classificationData,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                            }
-                        }
+    const classificationChart = new Chart(
+        document.getElementById('classificationChart'),
+        {
+            type: 'pie',
+            data: classificationData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Data Classification'
                     }
                 }
-            );
-
-            // Source Types Chart
-            const sourceTypes = {
-                'file': 0,
-                'database': 0,
-                'api': 0,
-                'kafka': 0
-            };
-
-            {% for source in source_status %}
-                sourceTypes['{{ source.type }}'] += 1;
-            {% endfor %}
-
-            const sourceTypesData = {
-                labels: Object.keys(sourceTypes),
-                datasets: [{
-                    data: Object.values(sourceTypes),
-                    backgroundColor: [
-                        '#007bff',  // File
-                        '#6610f2',  // Database
-                        '#20c997',  // API
-                        '#fd7e14'   // Kafka
-                    ]
-                }]
-            };
-
-            const sourceTypesChart = new Chart(
-                document.getElementById('sourceTypesChart'),
-                {
-                    type: 'pie',
-                    data: sourceTypesData,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                            }
-                        }
-                    }
-                }
-            );
+            }
+        }
+    );
+    
+    // Mermaid diagram
+    mermaid.initialize({
+        theme: 'dark',
+        startOnLoad: false
+    });
+    
+    // Fetch and render diagram
+    fetch('/api/diagram')
+        .then(response => response.json())
+        .then(data => {
+            const diagramElement = document.getElementById('dataFlowDiagram');
+            diagramElement.innerHTML = data.diagram;
+            mermaid.init(undefined, diagramElement);
         });
-    </script>
-</body>
-</html>
+});
+</script>
+{% endblock %}

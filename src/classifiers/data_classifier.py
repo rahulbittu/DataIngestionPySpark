@@ -295,7 +295,7 @@ class DataClassifier:
             self.logger.error(f"Error applying schema evolution for {source_name}: {str(e)}")
             return df
     
-    def calculate_metrics(self, df: DataFrame, validation_results: Optional[Dict[str, Any]] = None) -> Dict[str, Union[float, Dict[str, Any]]]:
+    def calculate_metrics(self, df: DataFrame, validation_results: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Calculate all data quality metrics.
         
@@ -304,9 +304,9 @@ class DataClassifier:
             validation_results: Optional schema validation results
             
         Returns:
-            Dict[str, Union[float, Dict[str, Any]]]: Dictionary of metric names and scores
+            Dict[str, Any]: Dictionary of metric names and scores (numeric or complex)
         """
-        metrics = {
+        metrics: Dict[str, Any] = {
             'completeness': self._calculate_completeness(df),
             'accuracy': self._calculate_accuracy(df),
             'timeliness': self._calculate_timeliness(df)

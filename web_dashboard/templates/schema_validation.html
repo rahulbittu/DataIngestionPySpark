@@ -1,0 +1,378 @@
+{% extends 'base.html' %}
+
+{% block title %}Schema Validation - Data Flow Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="display-5">Schema Validation Dashboard</h1>
+      <p class="lead">Monitor the schema validation status for all data sources</p>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Schema Validation Summary</h5>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6">
+              <div class="display-4 text-success">{{ schema_stats.valid_count }}</div>
+              <p>Valid Schemas</p>
+            </div>
+            <div class="col-6">
+              <div class="display-4 text-danger">{{ schema_stats.invalid_count }}</div>
+              <p>Invalid Schemas</p>
+            </div>
+          </div>
+          <div class="progress mt-3">
+            <div class="progress-bar bg-success" role="progressbar" 
+                 style="width: {{ schema_stats.valid_percentage }}%;" 
+                 aria-valuenow="{{ schema_stats.valid_percentage }}" 
+                 aria-valuemin="0" aria-valuemax="100">
+              {{ schema_stats.valid_percentage }}%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Schema Evolution</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Schema Name</th>
+                <th>Current Version</th>
+                <th>Latest Version</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for schema in schema_versions %}
+              <tr>
+                <td>{{ schema.name }}</td>
+                <td>{{ schema.current_version }}</td>
+                <td>{{ schema.latest_version }}</td>
+                <td>
+                  {% if schema.current_version == schema.latest_version %}
+                    <span class="badge bg-success">Up to date</span>
+                  {% else %}
+                    <span class="badge bg-warning">Needs update</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row mb-4">
+    <div class="col">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Schema Validation Details</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-striped table-hover">
+            <thead>
+              <tr>
+                <th>Source Name</th>
+                <th>Type</th>
+                <th>Schema Version</th>
+                <th>Validation Status</th>
+                <th>Errors</th>
+                <th>Warnings</th>
+                <th>Last Validated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for source in schema_validations %}
+              <tr>
+                <td>{{ source.name }}</td>
+                <td><span class="badge bg-info">{{ source.type }}</span></td>
+                <td>{{ source.schema_version }}</td>
+                <td>
+                  {% if source.is_valid %}
+                    <span class="badge bg-success">Valid</span>
+                  {% else %}
+                    <span class="badge bg-danger">Invalid</span>
+                  {% endif %}
+                </td>
+                <td>{{ source.error_count }}</td>
+                <td>{{ source.warning_count }}</td>
+                <td>{{ source.last_validated }}</td>
+                <td>
+                  <button type="button" class="btn btn-sm btn-primary" 
+                          data-bs-toggle="modal" 
+                          data-bs-target="#schemaDetailsModal" 
+                          data-source="{{ source.name }}">
+                    Details
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Column Validation Issues</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Column</th>
+                <th>Issue Type</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for issue in column_validation_issues %}
+              <tr>
+                <td>{{ issue.source_name }}</td>
+                <td>{{ issue.column_name }}</td>
+                <td>
+                  {% if issue.issue_type == 'pattern' %}
+                    <span class="badge bg-warning">Pattern</span>
+                  {% elif issue.issue_type == 'range' %}
+                    <span class="badge bg-warning">Range</span>
+                  {% elif issue.issue_type == 'missing' %}
+                    <span class="badge bg-danger">Missing</span>
+                  {% elif issue.issue_type == 'type' %}
+                    <span class="badge bg-danger">Type</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Other</span>
+                  {% endif %}
+                </td>
+                <td>{{ issue.description }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Pattern Matching Statistics</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Column</th>
+                <th>Pattern</th>
+                <th>Match Rate</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pattern in pattern_matching_stats %}
+              <tr>
+                <td>{{ pattern.source_name }}</td>
+                <td>{{ pattern.column_name }}</td>
+                <td><code>{{ pattern.pattern }}</code></td>
+                <td>
+                  <div class="progress">
+                    <div class="progress-bar {% if pattern.match_rate >= 0.9 %}bg-success{% elif pattern.match_rate >= 0.7 %}bg-warning{% else %}bg-danger{% endif %}" 
+                         role="progressbar" 
+                         style="width: {{ pattern.match_rate * 100 }}%;" 
+                         aria-valuenow="{{ pattern.match_rate * 100 }}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                      {{ "%.1f"|format(pattern.match_rate * 100) }}%
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if pattern.match_rate >= 0.9 %}
+                    <span class="badge bg-success">Good</span>
+                  {% elif pattern.match_rate >= 0.7 %}
+                    <span class="badge bg-warning">Warning</span>
+                  {% else %}
+                    <span class="badge bg-danger">Critical</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schema Details Modal -->
+<div class="modal fade" id="schemaDetailsModal" tabindex="-1" aria-labelledby="schemaDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="schemaDetailsModalLabel">Schema Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="schemaDetails">
+          <!-- Modal content will be loaded dynamically via JavaScript -->
+          <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Modal event handler to load schema details
+    const schemaDetailsModal = document.getElementById('schemaDetailsModal');
+    schemaDetailsModal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      const sourceName = button.getAttribute('data-source');
+      const modalTitle = schemaDetailsModal.querySelector('.modal-title');
+      const schemaDetails = document.getElementById('schemaDetails');
+      
+      modalTitle.textContent = `Schema Details: ${sourceName}`;
+      
+      // Show loading spinner
+      schemaDetails.innerHTML = `
+        <div class="d-flex justify-content-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      `;
+      
+      // Fetch schema details from API
+      fetch(`/api/schema/${sourceName}`)
+        .then(response => response.json())
+        .then(data => {
+          let html = '';
+          
+          if (data.error) {
+            html = `<div class="alert alert-danger">${data.error}</div>`;
+          } else {
+            // Schema fields
+            html += '<h5>Schema Fields</h5>';
+            html += '<table class="table table-sm">';
+            html += '<thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>';
+            html += '<tbody>';
+            
+            const fields = data.schema?.fields || [];
+            fields.forEach(field => {
+              html += '<tr>';
+              html += `<td>${field.name}</td>`;
+              html += `<td><code>${field.type}</code></td>`;
+              html += `<td>${field.nullable ? 'No' : 'Yes'}</td>`;
+              html += `<td>${field.description || '-'}</td>`;
+              html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            
+            // Pattern constraints
+            if (data.schema?.pattern_constraints) {
+              html += '<h5 class="mt-4">Pattern Constraints</h5>';
+              html += '<table class="table table-sm">';
+              html += '<thead><tr><th>Field</th><th>Pattern</th></tr></thead>';
+              html += '<tbody>';
+              
+              Object.entries(data.schema.pattern_constraints).forEach(([field, pattern]) => {
+                html += '<tr>';
+                html += `<td>${field}</td>`;
+                html += `<td><code>${pattern}</code></td>`;
+                html += '</tr>';
+              });
+              
+              html += '</tbody></table>';
+            }
+            
+            // Range constraints
+            if (data.schema?.range_constraints) {
+              html += '<h5 class="mt-4">Range Constraints</h5>';
+              html += '<table class="table table-sm">';
+              html += '<thead><tr><th>Field</th><th>Min</th><th>Max</th></tr></thead>';
+              html += '<tbody>';
+              
+              Object.entries(data.schema.range_constraints).forEach(([field, constraints]) => {
+                html += '<tr>';
+                html += `<td>${field}</td>`;
+                html += `<td>${constraints.min !== undefined ? constraints.min : '-'}</td>`;
+                html += `<td>${constraints.max !== undefined ? constraints.max : '-'}</td>`;
+                html += '</tr>';
+              });
+              
+              html += '</tbody></table>';
+            }
+            
+            // Validation results if available
+            if (data.validation_results) {
+              html += '<h5 class="mt-4">Validation Results</h5>';
+              
+              if (data.validation_results.errors && data.validation_results.errors.length > 0) {
+                html += '<div class="alert alert-danger">';
+                html += '<h6>Errors:</h6>';
+                html += '<ul>';
+                data.validation_results.errors.forEach(error => {
+                  html += `<li>${error}</li>`;
+                });
+                html += '</ul>';
+                html += '</div>';
+              }
+              
+              if (data.validation_results.warnings && data.validation_results.warnings.length > 0) {
+                html += '<div class="alert alert-warning">';
+                html += '<h6>Warnings:</h6>';
+                html += '<ul>';
+                data.validation_results.warnings.forEach(warning => {
+                  html += `<li>${warning}</li>`;
+                });
+                html += '</ul>';
+                html += '</div>';
+              }
+            }
+          }
+          
+          schemaDetails.innerHTML = html;
+        })
+        .catch(error => {
+          schemaDetails.innerHTML = `
+            <div class="alert alert-danger">
+              Error loading schema details: ${error.message}
+            </div>
+          `;
+        });
+    });
+  });
+</script>
+{% endblock %}
