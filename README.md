@@ -8,8 +8,9 @@ A robust, scalable data ingestion and classification system built with PySpark f
 - **Real-time Streaming**: Support for both batch and real-time streaming processing
 - **Data Classification**: Automatic classification into Bronze, Silver, and Gold tiers based on data quality
 - **Schema Registry**: Dynamic schema validation and evolution capabilities
-- **Elastic Stack Integration**: Full integration with Elasticsearch for data storage and Kibana for visualization
-- **Web Dashboard**: Real-time monitoring with WebSocket-based updates
+- **Apache Hive Integration**: Primary storage for classified data in Cloudera environment
+- **Elastic Stack Integration**: Optional secondary storage with Elasticsearch and Kibana for visualization
+- **Web Dashboard**: Real-time monitoring with WebSocket-based updates and interactive data flow animations
 - **Event-driven Architecture**: Complete event system for asynchronous processing
 
 ## 📋 System Architecture
@@ -77,7 +78,13 @@ graph TD
     CL --> GD[Gold Tier]
     CL --> RJ[Rejected]
     
-    %% Elasticsearch Integration
+    %% Primary Storage (Hive)
+    BZ --> HV_BZ[Bronze Hive Tables]
+    SV --> HV_SV[Silver Hive Tables]
+    GD --> HV_GD[Gold Hive Tables]
+    RJ --> HV_RJ[Rejected Hive Tables]
+    
+    %% Secondary Storage (Elasticsearch)
     BZ --> ES_BZ[Bronze ES Index]
     SV --> ES_SV[Silver ES Index]
     GD --> ES_GD[Gold ES Index]
@@ -119,12 +126,14 @@ graph TD
     classDef classification fill:#bfb,stroke:#333,stroke-width:2px
     classDef dashboard fill:#fbb,stroke:#333,stroke-width:2px
     classDef elastic fill:#ff7, stroke:#333, stroke-width:2px
+    classDef hive fill:#8bc, stroke:#333, stroke-width:2px
     
     class DS_F,DS_D,DS_A,DS_K source
     class IN,BP,SP,EM,EQ,MT processing
     class CL,BZ,SV,GD,RJ classification
     class WD,DH,MP,DSP,SV,RT,MS,ELD dashboard
     class ES_BZ,ES_SV,ES_GD,ES_RJ,ES_MT,KB elastic
+    class HV_BZ,HV_SV,HV_GD,HV_RJ hive
 ```
 
 ## 📂 Project Structure
@@ -359,8 +368,20 @@ The system classifies data based on the following quality metrics:
 - **Event Log**: Real-time stream of system events
 - **Responsive Design**: Works on desktop and mobile devices
 
-## 📊 Elasticsearch & Kibana Integration
+## 🗄️ Apache Hive Integration
 
+- **Primary Storage**: Serves as the primary storage layer for all classified data in the Cloudera environment
+- **Table Organization**: Data is organized in tables by classification tier (bronze, silver, gold, rejected)
+- **Partitioning**: Tables are partitioned by year, month, and day for efficient queries and retention management
+- **Schema Management**: Automatic schema creation and evolution based on data structure
+- **Metadata Management**: Full metadata support for data discovery and lineage tracking
+- **Integration with Spark**: Native integration with PySpark for high-performance data access
+- **Security Features**: Support for authentication and authorization through Kerberos and Ranger
+- **Fallback Mechanism**: Automatic fallback to file storage when Hive is unavailable
+
+## 📊 Elasticsearch & Kibana Integration (Secondary Storage)
+
+- **Secondary Storage**: Optional storage layer for visualization and monitoring needs
 - **Data Storage**: Classified data (bronze, silver, gold, rejected) is stored in dedicated Elasticsearch indices
 - **Date-based Indices**: Data is organized in time-based indices for efficient retention management
 - **Metrics Tracking**: Pipeline metrics are stored in Elasticsearch for long-term trend analysis
