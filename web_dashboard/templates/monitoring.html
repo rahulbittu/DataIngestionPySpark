@@ -221,6 +221,43 @@
                 </div>
             </div>
         </div>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Real-time Event Log</h5>
+                        <div>
+                            <div class="d-flex align-items-center">
+                                <span class="me-2">Connection:</span>
+                                <div id="connection-status" class="status-indicator bg-danger" title="Disconnected"></div>
+                                <div class="dropdown ms-3">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="eventFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Filter Events
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="eventFilterDropdown">
+                                        <li><a class="dropdown-item" href="#" data-filter="all">All Events</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#" data-filter="metrics">Metrics Events</a></li>
+                                        <li><a class="dropdown-item" href="#" data-filter="source_status">Status Events</a></li>
+                                        <li><a class="dropdown-item" href="#" data-filter="schema_event">Schema Events</a></li>
+                                        <li><a class="dropdown-item" href="#" data-filter="error">Error Events</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="event-log" class="event-log">
+                            <div class="text-center text-muted py-5">
+                                <i data-feather="activity" class="mb-3" style="width: 48px; height: 48px;"></i>
+                                <p>Waiting for real-time events...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="row mb-4">
             <div class="col-12">

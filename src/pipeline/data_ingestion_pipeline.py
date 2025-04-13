@@ -35,7 +35,8 @@ class DataIngestionPipeline:
         self,
         spark: SparkSession,
         config_loader: ConfigLoader,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        schema_registry = None
     ):
         """
         Initialize the data ingestion pipeline.
@@ -44,10 +45,12 @@ class DataIngestionPipeline:
             spark: The SparkSession
             config_loader: Configuration loader
             logger: Logger instance
+            schema_registry: Optional schema registry for schema validation and evolution
         """
         self.spark = spark
         self.config_loader = config_loader
         self.logger = logger or logging.getLogger(__name__)
+        self.schema_registry = schema_registry
         
         # Get classification thresholds
         self.classification_thresholds = config_loader.get_classification_thresholds()
