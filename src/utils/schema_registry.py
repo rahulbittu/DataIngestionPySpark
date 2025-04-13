@@ -1,13 +1,17 @@
 """
 Schema registry for managing data schemas, validation, and evolution.
+Supports real-time, event-driven schema evolution.
 """
 
 import os
 import json
 import yaml
+import uuid
 import logging
+import threading
+import time
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional, Tuple, Union, Callable, Set
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, \
     DoubleType, BooleanType, TimestampType, DateType, ArrayType, DecimalType
@@ -21,7 +25,9 @@ class SchemaRegistry:
         self, 
         spark: SparkSession,
         schema_dir: str = "./schemas",
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        auto_evolution: bool = False,
+        watch_interval: int = 30
     ):
         """
         Initialize the schema registry.
@@ -30,17 +36,38 @@ class SchemaRegistry:
             spark: The SparkSession
             schema_dir: Directory where schema definitions are stored
             logger: Logger instance
+            auto_evolution: Whether to automatically evolve schemas based on data
+            watch_interval: Interval in seconds to watch for schema changes
         """
         self.spark = spark
         self.schema_dir = schema_dir
         self.logger = logger or logging.getLogger(__name__)
         self.schemas = {}
+        self.auto_evolution = auto_evolution
+        self.watch_interval = watch_interval
         
         # Create schema directory if it doesn't exist
         os.makedirs(schema_dir, exist_ok=True)
         
+        # Event listeners
+        self.event_listeners = {
+            'schema_updated': set(),
+            'schema_evolved': set(),
+            'schema_validated': set(),
+            'evolution_requested': set()
+        }
+        
+        # Schema change monitoring
+        self.watch_thread = None
+        self.watching = False
+        self.schema_stats = {}
+        
         # Load all schemas
         self._load_schemas()
+        
+        # Track schema stats for auto-evolution
+        if auto_evolution:
+            self._initialize_schema_stats()
     
     def _load_schemas(self):
         """
@@ -562,6 +589,249 @@ class SchemaRegistry:
                 metrics['column_metrics'][column_name] = col_metrics
         
         return metrics
+    
+    def _initialize_schema_stats(self):
+        """Initialize schema statistics for tracking schema evolution metrics"""
+        for schema_name in self.schemas:
+            try:
+                schema_def = self.get_schema(schema_name)
+                self.schema_stats[schema_name] = {
+                    'field_frequencies': {},
+                    'pattern_violations': {},
+                    'range_violations': {},
+                    'evolution_history': [],
+                    'last_updated': datetime.now().isoformat(),
+                    'sample_data': {}
+                }
+                
+                # Initialize field frequencies
+                for field in schema_def.get('fields', []):
+                    field_name = field['name']
+                    self.schema_stats[schema_name]['field_frequencies'][field_name] = 1.0
+            except Exception as e:
+                self.logger.error(f"Error initializing stats for schema {schema_name}: {str(e)}")
+    
+    def add_event_listener(self, event_type: str, listener: Callable):
+        """
+        Add an event listener for schema events.
+        
+        Args:
+            event_type: Type of event ('schema_updated', 'schema_evolved', 'schema_validated', 'evolution_requested')
+            listener: Callback function to be called when event occurs
+            
+        Returns:
+            str: Listener ID for removal
+        """
+        if event_type not in self.event_listeners:
+            raise ValueError(f"Unknown event type: {event_type}")
+        
+        listener_id = str(uuid.uuid4())
+        self.event_listeners[event_type].add((listener_id, listener))
+        return listener_id
+    
+    def remove_event_listener(self, event_type: str, listener_id: str) -> bool:
+        """
+        Remove an event listener.
+        
+        Args:
+            event_type: Type of event
+            listener_id: ID of the listener to remove
+            
+        Returns:
+            bool: True if listener was removed, False otherwise
+        """
+        if event_type not in self.event_listeners:
+            return False
+        
+        for lid, listener in list(self.event_listeners[event_type]):
+            if lid == listener_id:
+                self.event_listeners[event_type].remove((lid, listener))
+                return True
+        
+        return False
+    
+    def _emit_event(self, event_type: str, event_data: Dict[str, Any]):
+        """
+        Emit an event to all listeners of the given type.
+        
+        Args:
+            event_type: Type of event
+            event_data: Event data
+        """
+        if event_type not in self.event_listeners:
+            return
+        
+        # Add timestamp and event type
+        event_data['timestamp'] = datetime.now().isoformat()
+        event_data['event_type'] = event_type
+        
+        # Call all listeners
+        for _, listener in self.event_listeners[event_type]:
+            try:
+                listener(event_data)
+            except Exception as e:
+                self.logger.error(f"Error in event listener: {str(e)}")
+    
+    def start_schema_monitoring(self):
+        """
+        Start monitoring for schema changes.
+        """
+        if self.watching:
+            return
+        
+        self.watching = True
+        self.watch_thread = threading.Thread(target=self._monitor_schemas)
+        self.watch_thread.daemon = True
+        self.watch_thread.start()
+        self.logger.info("Schema monitoring started")
+    
+    def stop_schema_monitoring(self):
+        """
+        Stop monitoring for schema changes.
+        """
+        self.watching = False
+        if self.watch_thread:
+            self.watch_thread.join(timeout=2)
+            self.watch_thread = None
+        self.logger.info("Schema monitoring stopped")
+    
+    def _monitor_schemas(self):
+        """
+        Monitor schemas for changes and trigger auto-evolution if needed.
+        """
+        while self.watching:
+            try:
+                # Check for schema files changes
+                for filename in os.listdir(self.schema_dir):
+                    if filename.endswith('.json') or filename.endswith('.yml') or filename.endswith('.yaml'):
+                        schema_path = os.path.join(self.schema_dir, filename)
+                        schema_name = os.path.splitext(filename)[0]
+                        
+                        # Check if file was modified
+                        last_modified = os.path.getmtime(schema_path)
+                        
+                        # Skip if we've already processed this version
+                        if schema_name in self.schemas and hasattr(self, '_last_modified') and schema_name in self._last_modified:
+                            if last_modified <= self._last_modified[schema_name]:
+                                continue
+                        
+                        # Reload schema
+                        self.logger.info(f"Schema file changed: {schema_name}, reloading")
+                        with open(schema_path, 'r') as f:
+                            if filename.endswith('.json'):
+                                schema_def = json.load(f)
+                            else:
+                                schema_def = yaml.safe_load(f)
+                        
+                        # Update schema
+                        old_schema = self.schemas.get(schema_name)
+                        self.schemas[schema_name] = schema_def
+                        
+                        # Track last modified time
+                        if not hasattr(self, '_last_modified'):
+                            self._last_modified = {}
+                        self._last_modified[schema_name] = last_modified
+                        
+                        # Emit event
+                        self._emit_event('schema_updated', {
+                            'schema_name': schema_name,
+                            'old_schema': old_schema,
+                            'new_schema': schema_def
+                        })
+                
+                # Sleep between checks
+                time.sleep(self.watch_interval)
+                
+            except Exception as e:
+                self.logger.error(f"Error in schema monitoring: {str(e)}")
+                time.sleep(self.watch_interval * 2)  # Longer sleep on error
+    
+    def infer_schema_changes(self, df: DataFrame, schema_name: str, version: str = 'latest') -> Dict[str, Any]:
+        """
+        Infer potential schema changes based on a DataFrame.
+        
+        Args:
+            df: DataFrame to analyze
+            schema_name: Name of the schema
+            version: Schema version
+            
+        Returns:
+            Dict[str, Any]: Suggested schema changes
+        """
+        try:
+            schema_def = self.get_schema(schema_name, version)
+            expected_fields = {field['name']: field for field in schema_def.get('fields', [])}
+            actual_fields = {field.name: field for field in df.schema.fields}
+            
+            changes = {
+                'add_fields': [],
+                'remove_fields': [],
+                'modify_fields': [],
+                'pattern_changes': [],
+                'range_changes': []
+            }
+            
+            # Find new fields
+            for field_name, field in actual_fields.items():
+                if field_name not in expected_fields:
+                    field_type = str(field.dataType).split('(')[0].lower()
+                    changes['add_fields'].append({
+                        'name': field_name,
+                        'type': field_type,
+                        'nullable': field.nullable
+                    })
+            
+            # Find removed fields
+            for field_name in expected_fields:
+                if field_name not in actual_fields:
+                    changes['remove_fields'].append(field_name)
+            
+            # Find modified fields
+            for field_name, field_def in expected_fields.items():
+                if field_name in actual_fields:
+                    expected_type = field_def['type'].lower()
+                    actual_type = str(actual_fields[field_name].dataType).split('(')[0].lower()
+                    
+                    if not self._are_types_compatible(expected_type, actual_type):
+                        changes['modify_fields'].append({
+                            'name': field_name,
+                            'old_type': expected_type,
+                            'new_type': actual_type,
+                            'nullable': actual_fields[field_name].nullable
+                        })
+            
+            return changes
+            
+        except Exception as e:
+            self.logger.error(f"Error inferring schema changes: {str(e)}")
+            return {}
+    
+    def request_schema_evolution(self, schema_name: str, df: DataFrame) -> str:
+        """
+        Request schema evolution based on a DataFrame.
+        
+        Args:
+            schema_name: Name of the schema
+            df: DataFrame to base evolution on
+            
+        Returns:
+            str: Request ID
+        """
+        # Generate request ID
+        request_id = str(uuid.uuid4())
+        
+        # Generate schema changes
+        changes = self.infer_schema_changes(df, schema_name)
+        
+        # Emit event
+        self._emit_event('evolution_requested', {
+            'schema_name': schema_name,
+            'request_id': request_id,
+            'changes': changes,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return request_id
     
     def evolve_schema(self, schema_name: str, changes: Dict[str, Any], new_version: str) -> Dict[str, Any]:
         """
