@@ -1,0 +1,79 @@
+{
+  "name": "sales_transactions",
+  "description": "Schema for sales transaction data",
+  "versions": {
+    "v1": {
+      "fields": [
+        {
+          "name": "transaction_id",
+          "type": "string",
+          "nullable": false,
+          "description": "Unique identifier for the transaction"
+        },
+        {
+          "name": "customer_id",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer identifier"
+        },
+        {
+          "name": "product_id",
+          "type": "string",
+          "nullable": false,
+          "description": "Product identifier"
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "nullable": false,
+          "description": "Quantity of product purchased"
+        },
+        {
+          "name": "unit_price",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "description": "Price per unit"
+        },
+        {
+          "name": "total_price",
+          "type": "decimal(10,2)",
+          "nullable": false,
+          "description": "Total price (quantity * unit_price)"
+        },
+        {
+          "name": "transaction_date",
+          "type": "timestamp",
+          "nullable": false,
+          "description": "Date and time of transaction"
+        },
+        {
+          "name": "payment_method",
+          "type": "string",
+          "nullable": true,
+          "description": "Method of payment"
+        }
+      ],
+      "pattern_constraints": {
+        "transaction_id": "^TXN-[0-9]{8}$",
+        "customer_id": "^CUST-[0-9]{6}$",
+        "product_id": "^PRD-[0-9]{6}$",
+        "payment_method": "^(CREDIT|DEBIT|CASH|CHECK|TRANSFER)$"
+      },
+      "range_constraints": {
+        "quantity": {
+          "min": 1,
+          "max": 10000
+        },
+        "unit_price": {
+          "min": 0.01,
+          "max": 100000.00
+        },
+        "total_price": {
+          "min": 0.01,
+          "max": 1000000.00
+        }
+      },
+      "created_at": "2024-04-13T00:00:00Z"
+    }
+  }
+}

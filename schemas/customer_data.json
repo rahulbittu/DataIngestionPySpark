@@ -1,0 +1,149 @@
+{
+  "name": "customer_data",
+  "description": "Schema for customer data",
+  "versions": {
+    "v1": {
+      "fields": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "nullable": false,
+          "description": "Unique identifier for the customer"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer's full name"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer's email address"
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's phone number"
+        },
+        {
+          "name": "address",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's address"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "description": "When the customer record was created"
+        }
+      ],
+      "pattern_constraints": {
+        "email": "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$",
+        "phone": "^\\+?[0-9]{10,15}$",
+        "customer_id": "^CUST-[0-9]{6}$"
+      },
+      "created_at": "2024-04-13T00:00:00Z"
+    },
+    "v2": {
+      "fields": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "nullable": false,
+          "description": "Unique identifier for the customer"
+        },
+        {
+          "name": "first_name",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer's first name"
+        },
+        {
+          "name": "last_name",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer's last name"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "nullable": false,
+          "description": "Customer's email address"
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's phone number"
+        },
+        {
+          "name": "address",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's address"
+        },
+        {
+          "name": "city",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's city"
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's state/province"
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "nullable": true,
+          "default": "USA",
+          "description": "Customer's country"
+        },
+        {
+          "name": "postal_code",
+          "type": "string",
+          "nullable": true,
+          "description": "Customer's postal/zip code"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "description": "When the customer record was created"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": true,
+          "description": "When the customer record was last updated"
+        },
+        {
+          "name": "customer_type",
+          "type": "string",
+          "nullable": true,
+          "default": "regular",
+          "description": "Type of customer (regular, premium, etc.)"
+        }
+      ],
+      "pattern_constraints": {
+        "email": "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$",
+        "phone": "^\\+?[0-9]{10,15}$",
+        "customer_id": "^CUST-[0-9]{6}$",
+        "postal_code": "^[0-9]{5}(-[0-9]{4})?$"
+      },
+      "created_at": "2024-04-13T00:00:00Z",
+      "evolution_notes": [
+        "Split 'name' field into 'first_name' and 'last_name'",
+        "Added address details (city, state, country, postal_code)",
+        "Added 'updated_at' timestamp",
+        "Added 'customer_type' field"
+      ]
+    }
+  }
+}
