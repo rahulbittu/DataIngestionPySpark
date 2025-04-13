@@ -1,16 +1,21 @@
 """
 Kafka connector for reading streaming data from Kafka topics.
+Supports both batch and streaming modes for real-time data processing.
 """
 
 import os
+import json
 import logging
-from typing import Dict, Any, Optional
+import threading
+from typing import Dict, Any, Optional, List, Callable, Union, Tuple
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, from_json, schema_of_json
+from pyspark.sql.functions import col, from_json, schema_of_json, window, current_timestamp
 from pyspark.sql.types import StructType, StringType
+from pyspark.sql.streaming import StreamingQuery
 
 from src.connectors.base_connector import BaseConnector
+from src.utils.kafka_utils import KafkaStreamingManager
 
 
 class KafkaConnector(BaseConnector):
@@ -50,7 +55,7 @@ class KafkaConnector(BaseConnector):
         # Additional Kafka options
         self.kafka_options = source_config.get('kafka_options', {})
     
-    def _resolve_env_var(self, value: str) -> str:
+    def _resolve_env_var(self, value: Optional[str]) -> Optional[str]:
         """
         Resolve environment variables in string.
         
@@ -198,3 +203,221 @@ class KafkaConnector(BaseConnector):
             'window_duration': self.window_duration
         })
         return metadata
+        
+    def start_streaming(
+        self,
+        process_func: Callable[[DataFrame], DataFrame],
+        output_mode: str = "append",
+        checkpoint_location: str = "./checkpoints",
+        query_name: Optional[str] = None,
+        trigger_interval: Optional[str] = None,
+        output_sink: Optional[str] = None,
+        sink_options: Optional[Dict[str, str]] = None
+    ) -> StreamingQuery:
+        """
+        Start a streaming query with the given processing function.
+        
+        Args:
+            process_func: Function to process the streaming DataFrame
+            output_mode: Output mode for the streaming query (append, complete, update)
+            checkpoint_location: Location to store checkpoints
+            query_name: Name for the streaming query
+            trigger_interval: Processing interval (e.g., "10 seconds")
+            output_sink: Optional output sink format (e.g., "console", "memory", "kafka")
+            sink_options: Optional configuration for the output sink
+            
+        Returns:
+            StreamingQuery: The streaming query
+            
+        Raises:
+            Exception: If there's an error starting the streaming query
+        """
+        try:
+            # Read data from Kafka
+            stream_df = self.read_data()
+            
+            # Apply the processing function
+            processed_df = process_func(stream_df)
+            
+            # Add processing timestamp if not already present
+            if "_processing_time" not in processed_df.columns:
+                processed_df = processed_df.withColumn("_processing_time", current_timestamp())
+            
+            # Create the streaming writer
+            query_name = query_name or f"streaming-query-{self.name}"
+            writer = processed_df.writeStream \
+                .outputMode(output_mode) \
+                .option("checkpointLocation", f"{checkpoint_location}/{query_name}") \
+                .queryName(query_name)
+            
+            # Add trigger if specified
+            if trigger_interval:
+                writer = writer.trigger(processingTime=trigger_interval)
+            
+            # Configure the output sink
+            if output_sink == "console":
+                query = writer.format("console").start()
+            elif output_sink == "memory":
+                query = writer.format("memory").start()
+            elif output_sink == "kafka":
+                if not sink_options or "kafka.bootstrap.servers" not in sink_options:
+                    sink_options = sink_options or {}
+                    sink_options["kafka.bootstrap.servers"] = self.bootstrap_servers
+                
+                for key, value in sink_options.items():
+                    writer = writer.option(key, value)
+                
+                query = writer.format("kafka").start()
+            else:
+                # Default to foreachBatch for custom handling
+                query = writer.foreachBatch(self._foreach_batch_handler).start()
+            
+            self.logger.info(f"Started streaming query '{query_name}' with output mode '{output_mode}'")
+            return query
+            
+        except Exception as e:
+            self.logger.error(f"Error starting streaming query: {str(e)}")
+            raise
+    
+    def _foreach_batch_handler(self, batch_df: DataFrame, batch_id: int) -> None:
+        """
+        Default handler for foreachBatch processing.
+        
+        Args:
+            batch_df: The batch DataFrame
+            batch_id: The batch ID
+        """
+        if batch_df.isEmpty():
+            return
+        
+        self.logger.info(f"Processing batch {batch_id} with {batch_df.count()} records")
+        
+        # Implement default handling logic here
+        # For now, just log batch statistics
+        try:
+            count = batch_df.count()
+            self.logger.info(f"Batch {batch_id} contained {count} records")
+        except Exception as e:
+            self.logger.error(f"Error processing batch {batch_id}: {str(e)}")
+    
+    def create_streaming_manager(self) -> KafkaStreamingManager:
+        """
+        Create a Kafka streaming manager for direct Kafka operations.
+        
+        Returns:
+            KafkaStreamingManager: Kafka streaming manager instance
+        """
+        return KafkaStreamingManager(
+            bootstrap_servers=self.bootstrap_servers,
+            group_id=self.group_id,
+            auto_offset_reset=self.starting_offsets,
+            logger=self.logger
+        )
+    
+    def start_event_stream(
+        self,
+        consumer_name: str,
+        process_func: Callable[[Dict[str, Any]], None],
+        batch_mode: bool = False,
+        batch_size: int = 100,
+        run_in_thread: bool = True
+    ) -> Optional[threading.Thread]:
+        """
+        Start consuming events from Kafka topic with direct event processing.
+        
+        Args:
+            consumer_name: Name for the consumer
+            process_func: Function to process each event
+            batch_mode: Whether to process events in batches
+            batch_size: Size of batches when batch_mode is True
+            run_in_thread: Whether to run consumer in a separate thread
+            
+        Returns:
+            Optional[threading.Thread]: Thread if run_in_thread is True, None otherwise
+        """
+        try:
+            # Create streaming manager
+            manager = self.create_streaming_manager()
+            
+            # Create consumer
+            manager.create_consumer(consumer_name, [self.topic])
+            
+            # Register message handler
+            manager.register_message_handler(consumer_name, process_func)
+            
+            # Define consumer function
+            def consume_events():
+                try:
+                    if batch_mode:
+                        manager.start_consuming_batch(consumer_name, batch_size=batch_size)
+                    else:
+                        manager.start_consuming(consumer_name)
+                except Exception as e:
+                    self.logger.error(f"Error in Kafka consumer thread: {str(e)}")
+                finally:
+                    manager.close()
+            
+            # Start consumer
+            if run_in_thread:
+                thread = threading.Thread(
+                    target=consume_events,
+                    name=f"kafka-consumer-{consumer_name}",
+                    daemon=True
+                )
+                thread.start()
+                self.logger.info(f"Started Kafka consumer '{consumer_name}' in thread")
+                return thread
+            else:
+                self.logger.info(f"Starting Kafka consumer '{consumer_name}'")
+                consume_events()
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error starting Kafka event stream: {str(e)}")
+            raise
+    
+    def produce_event(
+        self,
+        value: Dict[str, Any],
+        key: Optional[str] = None,
+        producer_name: str = "default-producer",
+        topic: Optional[str] = None
+    ) -> None:
+        """
+        Produce a single event to a Kafka topic.
+        
+        Args:
+            value: Event data
+            key: Optional message key
+            producer_name: Name for the producer
+            topic: Topic to produce to (defaults to the source topic)
+        """
+        try:
+            # Create streaming manager
+            manager = self.create_streaming_manager()
+            
+            # Create producer if needed
+            if producer_name not in manager.producers:
+                manager.create_producer(producer_name)
+            
+            # Use the source topic by default
+            target_topic = topic or self.topic
+            
+            # Add timestamp if not present
+            if "_timestamp" not in value:
+                import time
+                value["_timestamp"] = int(time.time() * 1000)
+            
+            # Produce message
+            manager.produce_message(
+                producer_name=producer_name,
+                topic=target_topic,
+                value=value,
+                key=key
+            )
+            
+            self.logger.debug(f"Produced event to topic {target_topic}")
+            
+        except Exception as e:
+            self.logger.error(f"Error producing event to Kafka: {str(e)}")
+            raise
