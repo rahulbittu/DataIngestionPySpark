@@ -247,7 +247,22 @@ def index():
     """
     Render the dashboard home page.
     """
-    # Check if Elasticsearch is configured
+    # Check if Hive is configured (primary storage)
+    hive_enabled = False
+    hive_connection_info = {}
+    
+    if config_loader:
+        hive_config = config_loader.get_hive_config()
+        if hive_config:
+            hive_enabled = True
+            hive_connection_info = {
+                'database': hive_config.get('database', 'default'),
+                'host': hive_config.get('host', 'localhost'),
+                'port': hive_config.get('port', 10000),
+                'table_prefix': hive_config.get('table_prefix', '')
+            }
+    
+    # Check if Elasticsearch is configured (secondary storage)
     elasticsearch_enabled = False
     elasticsearch_kibana_url = "http://localhost:5601"  # Default Kibana URL
     
@@ -262,6 +277,8 @@ def index():
     return render_template('index.html', 
                           pipeline_metrics=pipeline_metrics,
                           source_status=source_status,
+                          hive_enabled=hive_enabled,
+                          hive_connection_info=hive_connection_info,
                           elasticsearch_enabled=elasticsearch_enabled,
                           elasticsearch_kibana_url=elasticsearch_kibana_url)
 
@@ -332,15 +349,110 @@ def api_diagram():
     """
     API endpoint for getting mermaid diagram.
     """
-    # Check if Elasticsearch is configured
+    # Check if Hive is configured (primary storage)
+    hive_enabled = False
+    if config_loader:
+        hive_config = config_loader.get_hive_config()
+        if hive_config:
+            hive_enabled = True
+            
+    # Check if Elasticsearch is configured (secondary storage)
     elasticsearch_enabled = False
     if config_loader:
         es_config = config_loader.get_elasticsearch_config()
         if es_config:
             elasticsearch_enabled = True
     
-    # Create a diagram that shows Elasticsearch integration if enabled
-    if elasticsearch_enabled:
+    # Create a diagram that shows Hive and Elasticsearch integrations
+    if hive_enabled and elasticsearch_enabled:
+        mermaid_diagram = """
+        graph TD
+            A[Data Sources] --> B[Ingestion Layer]
+            
+            %% Data Sources
+            A --> C1[File Sources]
+            A --> C2[Database Sources]
+            A --> C3[API Sources]
+            A --> C4[Kafka Sources]
+            
+            %% Ingestion Process
+            B --> D[Data Classification]
+            D --> E1[Bronze]
+            D --> E2[Silver]
+            D --> E3[Gold]
+            D --> E4[Rejected]
+            
+            %% Classification Rules
+            F[Classification Rules] --> D
+            F1[Completeness] --> F
+            F2[Accuracy] --> F
+            F3[Timeliness] --> F
+            
+            %% Primary Storage (Hive)
+            E1 --> H1[Bronze Hive Tables]
+            E2 --> H2[Silver Hive Tables]
+            E3 --> H3[Gold Hive Tables]
+            E4 --> H4[Rejected Hive Tables]
+            
+            %% Secondary Storage (Elasticsearch)
+            E1 --> ES1[Bronze Elasticsearch Index]
+            E2 --> ES2[Silver Elasticsearch Index]
+            E3 --> ES3[Gold Elasticsearch Index]
+            E4 --> ES4[Rejected Elasticsearch Index]
+            
+            %% Elasticsearch Monitoring
+            B --> M[Metrics]
+            D --> M
+            M --> ESM[Metrics Elasticsearch Index]
+            
+            %% Kibana
+            ES1 --> K[Kibana Dashboards]
+            ES2 --> K
+            ES3 --> K
+            ES4 --> K
+            ESM --> K
+            
+            %% Visualization
+            K --> V1[Pipeline Overview]
+            K --> V2[Data Quality Metrics]
+            K --> V3[Source Monitoring]
+        """
+    elif hive_enabled:
+        mermaid_diagram = """
+        graph TD
+            A[Data Sources] --> B[Ingestion Layer]
+            
+            %% Data Sources
+            A --> C1[File Sources]
+            A --> C2[Database Sources]
+            A --> C3[API Sources]
+            A --> C4[Kafka Sources]
+            
+            %% Ingestion Process
+            B --> D[Data Classification]
+            D --> E1[Bronze]
+            D --> E2[Silver]
+            D --> E3[Gold]
+            D --> E4[Rejected]
+            
+            %% Classification Rules
+            F[Classification Rules] --> D
+            F1[Completeness] --> F
+            F2[Accuracy] --> F
+            F3[Timeliness] --> F
+            
+            %% Primary Storage (Hive)
+            E1 --> H1[Bronze Hive Tables]
+            E2 --> H2[Silver Hive Tables]
+            E3 --> H3[Gold Hive Tables]
+            E4 --> H4[Rejected Hive Tables]
+            
+            %% Monitoring
+            B --> M[Metrics]
+            D --> M
+            M --> L[Logging & Monitoring]
+        """
+    elif elasticsearch_enabled:
         mermaid_diagram = """
         graph TD
             A[Data Sources] --> B[Ingestion Layer]
