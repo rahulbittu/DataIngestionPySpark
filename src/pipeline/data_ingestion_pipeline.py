@@ -668,6 +668,33 @@ class DataIngestionPipeline:
                 self.logger.error(f"Failed to start streaming for Kafka source: {source_name}")
         
         self.logger.info(f"Streaming pipeline started with {len(streaming_queries)} sources")
+        
+        # Send metrics to Elasticsearch if enabled
+        if self.use_elasticsearch:
+            self.logger.info("Sending streaming pipeline metrics to Elasticsearch")
+            
+            # Create streaming metrics for Elasticsearch
+            es_metrics = {
+                "pipeline_run": {
+                    "timestamp": datetime.now().isoformat(),
+                    "mode": "streaming",
+                    "streaming_sources": len(streaming_queries),
+                    "streaming_queries": [
+                        {
+                            "source_name": source_name,
+                            "query_names": list(queries.keys()) if queries else []
+                        }
+                        for source_name, queries in streaming_queries.items()
+                    ]
+                }
+            }
+            
+            # Send to Elasticsearch
+            if self.send_metrics_to_elasticsearch(es_metrics):
+                self.logger.info("Successfully sent streaming metrics to Elasticsearch")
+            else:
+                self.logger.warning("Failed to send streaming metrics to Elasticsearch")
+                
         return streaming_queries
     
     def process_streaming_events(
@@ -731,6 +758,26 @@ class DataIngestionPipeline:
         try:
             # Process all sources
             metrics = self.process_all_sources()
+            
+            # Send metrics to Elasticsearch if enabled
+            if self.use_elasticsearch:
+                self.logger.info("Sending pipeline metrics to Elasticsearch")
+                
+                # Create a copy of metrics for Elasticsearch with timestamp
+                es_metrics = {
+                    "pipeline_run": {
+                        "timestamp": datetime.now().isoformat(),
+                        "mode": "batch",
+                        "metrics": metrics.get('pipeline_metrics', {}),
+                        "sources": metrics.get('source_metrics', [])
+                    }
+                }
+                
+                # Send to Elasticsearch
+                if self.send_metrics_to_elasticsearch(es_metrics):
+                    self.logger.info("Successfully sent metrics to Elasticsearch")
+                else:
+                    self.logger.warning("Failed to send metrics to Elasticsearch")
             
             self.logger.info("Data ingestion pipeline completed successfully")
             return metrics
