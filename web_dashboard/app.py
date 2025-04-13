@@ -247,9 +247,23 @@ def index():
     """
     Render the dashboard home page.
     """
+    # Check if Elasticsearch is configured
+    elasticsearch_enabled = False
+    elasticsearch_kibana_url = "http://localhost:5601"  # Default Kibana URL
+    
+    if config_loader:
+        es_config = config_loader.get_elasticsearch_config()
+        if es_config:
+            elasticsearch_enabled = True
+            # Try to extract Kibana URL from config if available
+            if 'kibana_url' in es_config:
+                elasticsearch_kibana_url = es_config['kibana_url']
+    
     return render_template('index.html', 
                           pipeline_metrics=pipeline_metrics,
-                          source_status=source_status)
+                          source_status=source_status,
+                          elasticsearch_enabled=elasticsearch_enabled,
+                          elasticsearch_kibana_url=elasticsearch_kibana_url)
 
 
 @app.route('/data_sources')
@@ -257,7 +271,21 @@ def data_sources():
     """
     Render the data sources page.
     """
-    return render_template('data_sources.html', source_status=source_status)
+    # Check if Elasticsearch is configured
+    elasticsearch_enabled = False
+    elasticsearch_kibana_url = "http://localhost:5601"  # Default Kibana URL
+    
+    if config_loader:
+        es_config = config_loader.get_elasticsearch_config()
+        if es_config:
+            elasticsearch_enabled = True
+            if 'kibana_url' in es_config:
+                elasticsearch_kibana_url = es_config['kibana_url']
+    
+    return render_template('data_sources.html', 
+                          source_status=source_status,
+                          elasticsearch_enabled=elasticsearch_enabled,
+                          elasticsearch_kibana_url=elasticsearch_kibana_url)
 
 
 @app.route('/monitoring')
@@ -265,9 +293,22 @@ def monitoring():
     """
     Render the monitoring page.
     """
+    # Check if Elasticsearch is configured
+    elasticsearch_enabled = False
+    elasticsearch_kibana_url = "http://localhost:5601"  # Default Kibana URL
+    
+    if config_loader:
+        es_config = config_loader.get_elasticsearch_config()
+        if es_config:
+            elasticsearch_enabled = True
+            if 'kibana_url' in es_config:
+                elasticsearch_kibana_url = es_config['kibana_url']
+    
     return render_template('monitoring.html', 
                           pipeline_metrics=pipeline_metrics,
-                          source_status=source_status)
+                          source_status=source_status,
+                          elasticsearch_enabled=elasticsearch_enabled,
+                          elasticsearch_kibana_url=elasticsearch_kibana_url)
 
 
 @app.route('/api/metrics')
@@ -291,38 +332,94 @@ def api_diagram():
     """
     API endpoint for getting mermaid diagram.
     """
-    mermaid_diagram = """
-    graph TD
-        A[Data Sources] --> B[Ingestion Layer]
-        
-        %% Data Sources
-        A --> C1[File Sources]
-        A --> C2[Database Sources]
-        A --> C3[API Sources]
-        A --> C4[Kafka Sources]
-        
-        %% Ingestion Process
-        B --> D[Data Classification]
-        D --> E1[Bronze]
-        D --> E2[Silver]
-        D --> E3[Gold]
-        D --> E4[Rejected]
-        
-        %% Classification Rules
-        F[Classification Rules] --> D
-        F1[Completeness] --> F
-        F2[Accuracy] --> F
-        F3[Timeliness] --> F
-        
-        %% Output
-        E1 --> G[Transform Layer]
-        E2 --> G
-        E3 --> G
-        
-        %% Monitoring
-        B --> H[Monitoring & Logging]
-        D --> H
-    """
+    # Check if Elasticsearch is configured
+    elasticsearch_enabled = False
+    if config_loader:
+        es_config = config_loader.get_elasticsearch_config()
+        if es_config:
+            elasticsearch_enabled = True
+    
+    # Create a diagram that shows Elasticsearch integration if enabled
+    if elasticsearch_enabled:
+        mermaid_diagram = """
+        graph TD
+            A[Data Sources] --> B[Ingestion Layer]
+            
+            %% Data Sources
+            A --> C1[File Sources]
+            A --> C2[Database Sources]
+            A --> C3[API Sources]
+            A --> C4[Kafka Sources]
+            
+            %% Ingestion Process
+            B --> D[Data Classification]
+            D --> E1[Bronze]
+            D --> E2[Silver]
+            D --> E3[Gold]
+            D --> E4[Rejected]
+            
+            %% Classification Rules
+            F[Classification Rules] --> D
+            F1[Completeness] --> F
+            F2[Accuracy] --> F
+            F3[Timeliness] --> F
+            
+            %% Output with Elasticsearch
+            E1 --> ES1[Bronze Elasticsearch Index]
+            E2 --> ES2[Silver Elasticsearch Index]
+            E3 --> ES3[Gold Elasticsearch Index]
+            E4 --> ES4[Rejected Elasticsearch Index]
+            
+            %% Elasticsearch Monitoring
+            B --> M[Metrics]
+            D --> M
+            M --> ESM[Metrics Elasticsearch Index]
+            
+            %% Kibana
+            ES1 --> K[Kibana Dashboards]
+            ES2 --> K
+            ES3 --> K
+            ES4 --> K
+            ESM --> K
+            
+            %% Visualization
+            K --> V1[Pipeline Overview]
+            K --> V2[Data Quality Metrics]
+            K --> V3[Source Monitoring]
+        """
+    else:
+        mermaid_diagram = """
+        graph TD
+            A[Data Sources] --> B[Ingestion Layer]
+            
+            %% Data Sources
+            A --> C1[File Sources]
+            A --> C2[Database Sources]
+            A --> C3[API Sources]
+            A --> C4[Kafka Sources]
+            
+            %% Ingestion Process
+            B --> D[Data Classification]
+            D --> E1[Bronze]
+            D --> E2[Silver]
+            D --> E3[Gold]
+            D --> E4[Rejected]
+            
+            %% Classification Rules
+            F[Classification Rules] --> D
+            F1[Completeness] --> F
+            F2[Accuracy] --> F
+            F3[Timeliness] --> F
+            
+            %% Output
+            E1 --> G[Transform Layer]
+            E2 --> G
+            E3 --> G
+            
+            %% Monitoring
+            B --> H[Monitoring & Logging]
+            D --> H
+        """
     
     return jsonify({"diagram": mermaid_diagram})
 
@@ -363,12 +460,25 @@ def schema_validation():
                     'latest_version': 'v1'
                 })
     
+    # Check if Elasticsearch is configured
+    elasticsearch_enabled = False
+    elasticsearch_kibana_url = "http://localhost:5601"  # Default Kibana URL
+    
+    if config_loader:
+        es_config = config_loader.get_elasticsearch_config()
+        if es_config:
+            elasticsearch_enabled = True
+            if 'kibana_url' in es_config:
+                elasticsearch_kibana_url = es_config['kibana_url']
+                
     return render_template('schema_validation.html',
                           schema_stats=schema_stats,
                           schema_versions=schema_versions,
                           schema_validations=schema_validations,
                           column_validation_issues=column_validation_issues,
-                          pattern_matching_stats=pattern_matching_stats)
+                          pattern_matching_stats=pattern_matching_stats,
+                          elasticsearch_enabled=elasticsearch_enabled,
+                          elasticsearch_kibana_url=elasticsearch_kibana_url)
 
 
 @app.route('/api/schema/<schema_name>')

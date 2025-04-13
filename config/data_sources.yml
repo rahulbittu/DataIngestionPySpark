@@ -154,6 +154,7 @@ elasticsearch:
   username: "${ES_USERNAME}"
   password: "${ES_PASSWORD}"
   verify_certs: true
+  kibana_url: "http://${KIBANA_HOST:localhost}:${KIBANA_PORT:5601}"
   indices:
     metrics: "data-pipeline-metrics"
     bronze: "bronze-data"
