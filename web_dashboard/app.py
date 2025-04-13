@@ -416,21 +416,6 @@ def api_diagram():
             K --> V1[Pipeline Overview]
             K --> V2[Data Quality Metrics]
             K --> V3[Source Monitoring]
-            
-            %% Styling
-            classDef source fill:#f9f,stroke:#333,stroke-width:2px
-            classDef processing fill:#bbf,stroke:#333,stroke-width:2px
-            classDef classification fill:#bfb,stroke:#333,stroke-width:2px
-            classDef dashboard fill:#fbb,stroke:#333,stroke-width:2px
-            classDef elastic fill:#ff7,stroke:#333,stroke-width:2px
-            classDef hive fill:#8bc,stroke:#333,stroke-width:2px
-            
-            class A,C1,C2,C3,C4 source
-            class B,M processing
-            class D,E1,E2,E3,E4,F,F1,F2,F3 classification
-            class V1,V2,V3 dashboard
-            class ES1,ES2,ES3,ES4,ESM,K elastic
-            class H1,H2,H3,H4 hive
         """
     elif hive_enabled:
         mermaid_diagram = """
@@ -466,17 +451,6 @@ def api_diagram():
             B --> M[Metrics]
             D --> M
             M --> L[Logging & Monitoring]
-            
-            %% Styling
-            classDef source fill:#f9f,stroke:#333,stroke-width:2px
-            classDef processing fill:#bbf,stroke:#333,stroke-width:2px
-            classDef classification fill:#bfb,stroke:#333,stroke-width:2px
-            classDef hive fill:#8bc,stroke:#333,stroke-width:2px
-            
-            class A,C1,C2,C3,C4 source
-            class B,M,L processing
-            class D,E1,E2,E3,E4,F,F1,F2,F3 classification
-            class H1,H2,H3,H4 hive
         """
     elif elasticsearch_enabled:
         mermaid_diagram = """
@@ -524,19 +498,6 @@ def api_diagram():
             K --> V1[Pipeline Overview]
             K --> V2[Data Quality Metrics]
             K --> V3[Source Monitoring]
-            
-            %% Styling
-            classDef source fill:#f9f,stroke:#333,stroke-width:2px
-            classDef processing fill:#bbf,stroke:#333,stroke-width:2px
-            classDef classification fill:#bfb,stroke:#333,stroke-width:2px
-            classDef dashboard fill:#fbb,stroke:#333,stroke-width:2px
-            classDef elastic fill:#ff7,stroke:#333,stroke-width:2px
-            
-            class A,C1,C2,C3,C4 source
-            class B,M processing
-            class D,E1,E2,E3,E4,F,F1,F2,F3 classification
-            class V1,V2,V3 dashboard
-            class ES1,ES2,ES3,ES4,ESM,K elastic
         """
     else:
         mermaid_diagram = """
@@ -570,17 +531,6 @@ def api_diagram():
             %% Monitoring
             B --> H[Monitoring & Logging]
             D --> H
-            
-            %% Styling
-            classDef source fill:#f9f,stroke:#333,stroke-width:2px
-            classDef processing fill:#bbf,stroke:#333,stroke-width:2px
-            classDef classification fill:#bfb,stroke:#333,stroke-width:2px
-            classDef transform fill:#fb9,stroke:#333,stroke-width:2px
-            
-            class A,C1,C2,C3,C4 source
-            class B,H processing
-            class D,E1,E2,E3,E4,F,F1,F2,F3 classification
-            class G transform
         """
     
     return jsonify({"diagram": mermaid_diagram})
