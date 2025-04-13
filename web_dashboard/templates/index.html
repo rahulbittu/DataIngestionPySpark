@@ -358,6 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const diagramElement = document.getElementById('dataFlowDiagram');
             diagramElement.innerHTML = data.diagram;
             mermaid.init(undefined, diagramElement);
+            
+            // Initialize data flow animations after diagram is rendered
+            // (The animation initialization is handled by dataflow-animation.js)
         });
 });
 </script>
