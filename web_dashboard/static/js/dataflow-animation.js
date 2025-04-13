@@ -12,10 +12,11 @@ const dataFlowConfig = {
     pathVariation: 8,             // Variation in particle path (pixels)
     animationDelay: 3000,         // Delay between animations in ms
     pathOpacity: 0.5,             // Opacity of the flow path
-    autoAnimate: true,            // Automatically start animations
+    autoAnimate: false,           // Automatically start animations
     showFlowRate: true,           // Show flow rate indicators
     showTooltips: true,           // Show tooltips on hover
-    enableInteractions: true      // Enable user interactions
+    enableInteractions: true,     // Enable user interactions
+    randomFlows: true             // Randomly select flows for animation
 };
 
 // Store paths for animations
@@ -420,71 +421,63 @@ function toggleFlowAnimations() {
 function setupUserInteractions(svg) {
     if (!dataFlowConfig.enableInteractions) return;
     
-    // Create controls container if it doesn't exist
-    let controlsContainer = document.getElementById('dataFlowControls');
-    if (!controlsContainer) {
-        // Create a container for the controls
-        controlsContainer = document.createElement('div');
-        controlsContainer.id = 'dataFlowControls';
-        controlsContainer.className = 'data-flow-controls';
-        
-        // Create toggle button
-        const toggleButton = document.createElement('button');
-        toggleButton.id = 'toggleFlowAnimation';
-        toggleButton.className = 'btn btn-primary btn-sm';
-        toggleButton.innerHTML = '<i class="bi bi-play-fill"></i> Start Animation';
-        toggleButton.title = 'Toggle data flow animation';
-        
+    // Find existing controls that we added to the HTML
+    const toggleButton = document.getElementById('toggle-animation');
+    const speedSlider = document.getElementById('animation-speed');
+    const speedValue = document.getElementById('speed-value');
+    const randomFlow = document.getElementById('random-flow');
+    const highlightHive = document.getElementById('highlight-hive');
+    const highlightES = document.getElementById('highlight-elasticsearch');
+    const flowTooltip = document.getElementById('flow-tooltip');
+    const flowTooltipHeader = document.getElementById('flow-tooltip-header');
+    const flowTooltipBody = document.getElementById('flow-tooltip-body');
+    
+    // Setup toggle button
+    if (toggleButton) {
         toggleButton.addEventListener('click', () => {
             const isActive = toggleFlowAnimations();
             toggleButton.innerHTML = isActive ? 
                 '<i class="bi bi-pause-fill"></i> Pause Animation' : 
                 '<i class="bi bi-play-fill"></i> Start Animation';
         });
-        
-        // Create speed control
-        const speedControl = document.createElement('div');
-        speedControl.className = 'speed-control';
-        
-        const speedLabel = document.createElement('label');
-        speedLabel.htmlFor = 'flowSpeed';
-        speedLabel.textContent = 'Speed:';
-        
-        const speedSlider = document.createElement('input');
-        speedSlider.type = 'range';
-        speedSlider.id = 'flowSpeed';
-        speedSlider.min = '0.5';
-        speedSlider.max = '2.5';
-        speedSlider.step = '0.1';
-        speedSlider.value = '1';
-        
+    }
+    
+    // Setup speed slider
+    if (speedSlider && speedValue) {
         speedSlider.addEventListener('input', (e) => {
             const speedFactor = parseFloat(e.target.value);
+            speedValue.textContent = speedFactor + 'x';
             dataFlowConfig.animationDuration = 1500 / speedFactor;
             dataFlowConfig.animationDelay = 3000 / speedFactor;
             
-            // Restart animation with new settings
+            // Restart animation with new settings if active
             if (animationActive) {
                 stopFlowAnimations();
                 startFlowAnimations();
             }
         });
-        
-        speedControl.appendChild(speedLabel);
-        speedControl.appendChild(speedSlider);
-        
-        // Add elements to container
-        controlsContainer.appendChild(toggleButton);
-        controlsContainer.appendChild(speedControl);
-        
-        // Add container to the page
-        const diagramContainer = svg.closest('.card-body');
-        if (diagramContainer) {
-            diagramContainer.appendChild(controlsContainer);
-        } else {
-            // Fallback to adding before the SVG
-            svg.parentNode.insertBefore(controlsContainer, svg);
-        }
+    }
+    
+    // Setup random flow checkbox
+    if (randomFlow) {
+        randomFlow.addEventListener('change', (e) => {
+            dataFlowConfig.randomFlows = e.target.checked;
+        });
+        // Initialize from checkbox state
+        dataFlowConfig.randomFlows = randomFlow.checked;
+    }
+    
+    // Setup highlight buttons for specific flow types
+    if (highlightHive) {
+        highlightHive.addEventListener('click', () => {
+            highlightFlowsByType('hive');
+        });
+    }
+    
+    if (highlightES) {
+        highlightES.addEventListener('click', () => {
+            highlightFlowsByType('elasticsearch');
+        });
     }
     
     // Setup individual flow interactions
@@ -604,6 +597,38 @@ function hideFlowTooltip() {
     if (tooltip) {
         tooltip.remove();
     }
+}
+
+/**
+ * Highlight flows of a specific type
+ */
+function highlightFlowsByType(flowType) {
+    // First remove all highlights
+    Object.keys(flowPaths).forEach(flowId => {
+        const flow = flowPaths[flowId];
+        unhighlightFlow(flow);
+    });
+    
+    // Then highlight only flows of the specified type
+    Object.keys(flowPaths).forEach(flowId => {
+        const flow = flowPaths[flowId];
+        if (flow.flowType === flowType) {
+            highlightFlow(flow);
+            
+            // Animate this flow
+            setTimeout(() => {
+                animateFlow(flowId);
+            }, 300);
+        }
+    });
+    
+    // After a delay, clear highlights
+    setTimeout(() => {
+        Object.keys(flowPaths).forEach(flowId => {
+            const flow = flowPaths[flowId];
+            unhighlightFlow(flow);
+        });
+    }, 5000);
 }
 
 /**
