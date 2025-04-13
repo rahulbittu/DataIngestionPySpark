@@ -149,71 +149,8 @@
     <div class="row mb-4">
         <div class="col">
             <div class="card">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="card-title mb-0">Apache Hive Integration (Primary Storage)</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">Status</h5>
-                                    {% if hive_enabled %}
-                                    <span class="badge bg-success">Enabled</span>
-                                    {% else %}
-                                    <span class="badge bg-warning">Disabled</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-9">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">Hive Storage Details</h5>
-                                    <p>Apache Hive is configured as the primary storage for classified data in the Cloudera environment.</p>
-                                    
-                                    {% if hive_enabled %}
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered">
-                                            <tbody>
-                                                <tr>
-                                                    <th scope="row">Host</th>
-                                                    <td>{{ hive_connection_info.host }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th scope="row">Port</th>
-                                                    <td>{{ hive_connection_info.port }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th scope="row">Database</th>
-                                                    <td>{{ hive_connection_info.database }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <th scope="row">Table Prefix</th>
-                                                    <td>{{ hive_connection_info.table_prefix }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {% else %}
-                                    <div class="alert alert-secondary">
-                                        <i class="bi bi-info-circle me-2"></i> Hive is not configured. Classified data is being stored in the file system.
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card">
                 <div class="card-header bg-info text-white">
-                    <h5 class="card-title mb-0">Elasticsearch Integration (Secondary Storage)</h5>
+                    <h5 class="card-title mb-0">Elasticsearch Integration</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -233,7 +170,7 @@
                             <div class="card">
                                 <div class="card-body">
                                     <h5 class="card-title">Elasticsearch Dashboards</h5>
-                                    <p>The data ingestion pipeline integrates with Elasticsearch for visualization and monitoring.</p>
+                                    <p>The data ingestion pipeline now integrates with Elasticsearch for robust data storage and visualization.</p>
                                     
                                     <div class="list-group">
                                         {% if elasticsearch_enabled %}
