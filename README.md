@@ -9,7 +9,7 @@ A robust, scalable data ingestion and classification system built with PySpark f
 - **Data Classification**: Automatic classification into Bronze, Silver, and Gold tiers based on data quality
 - **Schema Registry**: Dynamic schema validation and evolution capabilities
 - **Elastic Stack Integration**: Full integration with Elasticsearch for data storage and Kibana for visualization
-- **Web Dashboard**: Real-time monitoring with WebSocket-based updates
+- **Web Dashboard**: Comprehensive monitoring dashboard
 - **Event-driven Architecture**: Complete event system for asynchronous processing
 
 ## 📋 System Architecture
@@ -40,15 +40,16 @@ The system is built with a modular architecture organized into the following com
 
 ### Web Dashboard
 
-- **Real-time Monitoring**: Live updates via WebSockets
+- **Pipeline Monitoring**: Comprehensive dashboards for system monitoring
 - **Data Source Status**: Connection health and processing metrics
 - **Classification Metrics**: Distribution and quality metrics visualization
 - **Schema Management**: Schema history and evolution tracking
-- **Event Log**: Live streaming of system events and data processing
+- **Event Log**: System events and data processing tracking
 
 ## 🔍 Data Flow Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff' }}}%%
 graph TD
     %% Main components
     DS[Data Sources] --> IN[Data Ingestion]
@@ -77,54 +78,30 @@ graph TD
     CL --> GD[Gold Tier]
     CL --> RJ[Rejected]
     
-    %% Elasticsearch Integration
-    BZ --> ES_BZ[Bronze ES Index]
-    SV --> ES_SV[Silver ES Index]
-    GD --> ES_GD[Gold ES Index]
-    RJ --> ES_RJ[Rejected ES Index]
+    %% Storage Options
+    BZ --> S1[Storage Layer]
+    SV --> S1
+    GD --> S1
+    RJ --> S1
     
-    %% Pipeline Metrics to Elasticsearch 
+    %% Storage implementations
+    S1 --> H[Hive Tables]
+    S1 --> ES[Elasticsearch]
+    
+    %% Pipeline Metrics 
     IN --> MT[Pipeline Metrics]
     CL --> MT
-    MT --> ES_MT[Metrics ES Index]
-    
-    %% Kibana Dashboards
-    ES_BZ --> KB[Kibana Dashboards]
-    ES_SV --> KB
-    ES_GD --> KB
-    ES_RJ --> KB
-    ES_MT --> KB
-    
-    %% Web dashboard
-    EQ --> WS[WebSocket Server]
-    WS --> WD[Web Dashboard]
+    MT --> L[Monitoring Dashboard]
     
     %% Schema evolution
     IN -- Schema Detection --> SR
-    SR -- Evolution Events --> EQ
     SR -- Schema Validation --> CL
     
-    %% Web dashboard components
-    WD --> DH[Dashboard Home]
-    WD --> MP[Monitoring Page]
-    WD --> DSP[Data Sources Page]
-    WD --> SV[Schema Validation]
-    WD --> ELD[ES Integration Status]
-    MP --> RT[Real-time Event Log]
-    MP --> MS[Metrics Summary]
-    
-    %% Styling
-    classDef source fill:#f9f,stroke:#333,stroke-width:2px
-    classDef processing fill:#bbf,stroke:#333,stroke-width:2px
-    classDef classification fill:#bfb,stroke:#333,stroke-width:2px
-    classDef dashboard fill:#fbb,stroke:#333,stroke-width:2px
-    classDef elastic fill:#ff7, stroke:#333, stroke-width:2px
-    
-    class DS_F,DS_D,DS_A,DS_K source
-    class IN,BP,SP,EM,EQ,MT processing
-    class CL,BZ,SV,GD,RJ classification
-    class WD,DH,MP,DSP,SV,RT,MS,ELD dashboard
-    class ES_BZ,ES_SV,ES_GD,ES_RJ,ES_MT,KB elastic
+    %% Dashboard components
+    L --> DH[Dashboard Home]
+    L --> MP[Monitoring Page]
+    L --> DSP[Data Sources Page]
+    L --> SV[Schema Validation]
 ```
 
 ## 📂 Project Structure
@@ -276,15 +253,10 @@ graph TD
 
 ### 4. Web Dashboard Layer
 
-- **WebSocket Server**:
-  - Manages bidirectional communication with clients
-  - Implemented with Socket.IO in Flask
-  - Handles client connections and disconnections
-
 - **Web Dashboard**:
   - Main web interface for system monitoring
   - Implemented in Flask using Bootstrap
-  - Serves static and dynamic content
+  - Serves static and dynamic content using standard Flask routing
 
 - **Dashboard Home**:
   - Overview and system status page
@@ -306,9 +278,9 @@ graph TD
   - Displays schema versions and evolution history
   - Provides validation statistics
 
-- **Real-time Event Log**:
-  - Live display of system events
-  - Shows streaming data events in real-time
+- **Event Log**:
+  - Display of system events
+  - Shows data processing events
   - Filters events by type and source
 
 - **Metrics Summary**:
@@ -352,11 +324,11 @@ The system classifies data based on the following quality metrics:
 
 ## 🌐 Web Dashboard Features
 
-- **Real-time Monitoring**: Live updates via WebSocket connection
+- **System Monitoring**: Comprehensive system status and metrics visualization
 - **Data Source Status**: Connection health and processing metrics
 - **Quality Metrics Visualization**: Charts showing quality distribution
 - **Schema Registry Interface**: Browse and manage schemas
-- **Event Log**: Real-time stream of system events
+- **Event Log**: System events and data processing logs
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## 📊 Elasticsearch & Kibana Integration
