@@ -1,0 +1,148 @@
+# Data Sources Configuration for the Data Ingestion Pipeline
+
+# Default classification thresholds for determining data quality
+default_classification:
+  bronze:
+    completeness: 0.7
+    accuracy: 0.6
+    timeliness: 0.5
+  silver:
+    completeness: 0.8
+    accuracy: 0.8
+    timeliness: 0.7
+  gold:
+    completeness: 0.95
+    accuracy: 0.9
+    timeliness: 0.85
+
+# Target paths for storing classified data
+target_paths:
+  bronze: "/data/bronze"
+  silver: "/data/silver"
+  gold: "/data/gold"
+  rejected: "/data/rejected"
+
+# File-based data sources
+file_sources:
+  - name: "customer_data"
+    type: "csv"
+    path: "/data/sources/customers.csv"
+    schema:
+      - name: "customer_id"
+        type: "string"
+        required: true
+      - name: "name"
+        type: "string"
+        required: true
+      - name: "email"
+        type: "string"
+        required: true
+      - name: "phone"
+        type: "string"
+        required: false
+      - name: "address"
+        type: "string"
+        required: false
+      - name: "created_at"
+        type: "timestamp"
+        required: true
+    options:
+      header: true
+      inferSchema: false
+
+  - name: "product_catalog"
+    type: "parquet"
+    path: "/data/sources/products.parquet"
+    options:
+      mergeSchema: true
+
+# Database data sources
+database_sources:
+  - name: "sales_transactions"
+    connection:
+      type: "postgresql"
+      host: "${DB_HOST}"
+      port: "${DB_PORT}"
+      database: "${DB_NAME}"
+      user: "${DB_USER}"
+      password: "${DB_PASSWORD}"
+    table: "sales"
+    query: "SELECT * FROM sales WHERE transaction_date >= current_date - interval '7 days'"
+    options:
+      fetchsize: 10000
+
+  - name: "inventory_levels"
+    connection:
+      type: "mysql"
+      host: "${MYSQL_HOST}"
+      port: "${MYSQL_PORT}"
+      database: "${MYSQL_DB}"
+      user: "${MYSQL_USER}"
+      password: "${MYSQL_PASSWORD}"
+    table: "inventory"
+    options:
+      partitionColumn: "product_id"
+      lowerBound: 1
+      upperBound: 100000
+      numPartitions: 10
+
+# API data sources
+api_sources:
+  - name: "weather_data"
+    base_url: "https://api.weather.example.com/v1"
+    endpoint: "/current"
+    method: "GET"
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer ${WEATHER_API_KEY}"
+    params:
+      locations: "London,New York,Tokyo,Sydney"
+      units: "metric"
+    response_format: "json"
+    response_path: "data"
+    pagination:
+      enabled: true
+      limit_param: "limit"
+      offset_param: "offset"
+      limit: 100
+      max_pages: 10
+
+  - name: "exchange_rates"
+    base_url: "https://api.exchangerate.example.com"
+    endpoint: "/latest"
+    method: "GET"
+    headers:
+      apikey: "${EXCHANGE_API_KEY}"
+    params:
+      base: "USD"
+      symbols: "EUR,GBP,JPY,CAD,AUD"
+    response_format: "json"
+    response_path: "rates"
+    caching:
+      enabled: true
+      ttl_seconds: 3600
+
+# Kafka data sources
+kafka_sources:
+  - name: "user_events"
+    bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+    topic: "user-events"
+    group_id: "data-ingestion-pipeline"
+    schema_registry_url: "${SCHEMA_REGISTRY_URL}"
+    starting_offsets: "latest"
+    options:
+      failOnDataLoss: false
+      maxOffsetsPerTrigger: 10000
+    value_schema: "avro"
+    authentication:
+      type: "SASL_SSL"
+      username: "${KAFKA_USERNAME}"
+      password: "${KAFKA_PASSWORD}"
+
+  - name: "system_metrics"
+    bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+    topic: "system-metrics"
+    group_id: "data-ingestion-pipeline"
+    starting_offsets: "earliest"
+    options:
+      includeHeaders: true

@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#aaa" />
+    </marker>
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#8B6914;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="silverGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#666;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#CCC;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bronzeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#8C7853;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#CD7F32;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="#2a2a2a" />
+  
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="24" fill="#eee" text-anchor="middle">PySpark-based Data Ingestion and Classification System</text>
+  
+  <!-- Data Sources -->
+  <g>
+    <rect x="80" y="100" width="120" height="60" rx="10" fill="#2b5797" stroke="#4570b7" stroke-width="2" />
+    <text x="140" y="135" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Data Sources</text>
+    
+    <!-- File Source -->
+    <rect x="30" y="220" width="100" height="40" rx="5" fill="#2b5797" stroke="#4570b7" stroke-width="1" />
+    <text x="80" y="245" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">File Sources</text>
+    <line x1="80" y1="170" x2="80" y2="220" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <!-- Database Source -->
+    <rect x="150" y="220" width="100" height="40" rx="5" fill="#2b5797" stroke="#4570b7" stroke-width="1" />
+    <text x="200" y="245" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">Database Sources</text>
+    <line x1="140" y1="170" x2="200" y2="220" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <!-- API Source -->
+    <rect x="30" y="280" width="100" height="40" rx="5" fill="#2b5797" stroke="#4570b7" stroke-width="1" />
+    <text x="80" y="305" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">API Sources</text>
+    <line x1="80" y1="260" x2="80" y2="280" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <!-- Kafka Source -->
+    <rect x="150" y="280" width="100" height="40" rx="5" fill="#2b5797" stroke="#4570b7" stroke-width="1" />
+    <text x="200" y="305" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">Kafka Sources</text>
+    <line x1="200" y1="260" x2="200" y2="280" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+  </g>
+  
+  <!-- Ingestion Layer -->
+  <g>
+    <rect x="340" y="100" width="120" height="60" rx="10" fill="#107c41" stroke="#2fa661" stroke-width="2" />
+    <text x="400" y="135" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Ingestion Layer</text>
+    <line x1="200" y1="130" x2="340" y2="130" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <rect x="340" y="200" width="120" height="60" rx="10" fill="#107c41" stroke="#2fa661" stroke-width="2" />
+    <text x="400" y="235" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Data Classification</text>
+    <line x1="400" y1="160" x2="400" y2="200" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+  </g>
+  
+  <!-- Classification Rules -->
+  <g>
+    <rect x="550" y="200" width="120" height="60" rx="10" fill="#0078d7" stroke="#2694de" stroke-width="2" />
+    <text x="610" y="225" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Classification</text>
+    <text x="610" y="245" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Rules</text>
+    <line x1="550" y1="230" x2="460" y2="230" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <rect x="570" y="300" width="80" height="30" rx="5" fill="#0078d7" stroke="#2694de" stroke-width="1" />
+    <text x="610" y="320" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">Completeness</text>
+    <line x1="610" y1="300" x2="610" y2="260" stroke="#aaa" stroke-width="1" marker-end="url(#arrowhead)" />
+    
+    <rect x="570" y="340" width="80" height="30" rx="5" fill="#0078d7" stroke="#2694de" stroke-width="1" />
+    <text x="610" y="360" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">Accuracy</text>
+    <line x1="610" y1="340" x2="610" y2="330" stroke="#aaa" stroke-width="1" marker-end="url(#arrowhead)" />
+    
+    <rect x="570" y="380" width="80" height="30" rx="5" fill="#0078d7" stroke="#2694de" stroke-width="1" />
+    <text x="610" y="400" font-family="Arial" font-size="12" fill="#eee" text-anchor="middle">Timeliness</text>
+    <line x1="610" y1="380" x2="610" y2="370" stroke="#aaa" stroke-width="1" marker-end="url(#arrowhead)" />
+  </g>
+  
+  <!-- Data Classification Tiers -->
+  <g>
+    <rect x="240" y="310" width="100" height="40" rx="5" fill="url(#bronzeGradient)" stroke="#CD7F32" stroke-width="1" />
+    <text x="290" y="335" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Bronze</text>
+    <line x1="360" y1="260" x2="290" y2="310" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <rect x="340" y="310" width="100" height="40" rx="5" fill="url(#silverGradient)" stroke="#C0C0C0" stroke-width="1" />
+    <text x="390" y="335" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Silver</text>
+    <line x1="400" y1="260" x2="390" y2="310" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <rect x="440" y="310" width="100" height="40" rx="5" fill="url(#goldGradient)" stroke="#FFD700" stroke-width="1" />
+    <text x="490" y="335" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Gold</text>
+    <line x1="440" y1="260" x2="490" y2="310" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    
+    <rect x="340" y="380" width="100" height="40" rx="5" fill="#d13438" stroke="#ff5c65" stroke-width="1" />
+    <text x="390" y="405" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Rejected</text>
+    <line x1="390" y1="350" x2="390" y2="380" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+  </g>
+  
+  <!-- Transform Layer -->
+  <g>
+    <rect x="340" y="480" width="120" height="60" rx="10" fill="#744da9" stroke="#9571d4" stroke-width="2" />
+    <text x="400" y="515" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Transform Layer</text>
+    
+    <line x1="290" y1="350" x2="370" y2="480" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    <line x1="390" y1="350" x2="390" y2="480" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+    <line x1="490" y1="350" x2="410" y2="480" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" />
+  </g>
+  
+  <!-- Monitoring -->
+  <g>
+    <rect x="600" y="480" width="120" height="60" rx="10" fill="#b7472a" stroke="#d86753" stroke-width="2" />
+    <text x="660" y="505" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Monitoring &amp;</text>
+    <text x="660" y="525" font-family="Arial" font-size="14" fill="#eee" text-anchor="middle">Logging</text>
+    
+    <line x1="460" y1="130" x2="640" y2="480" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5,5" />
+    <line x1="460" y1="230" x2="620" y2="480" stroke="#aaa" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5,5" />
+  </g>
+  
+  <!-- Legend -->
+  <g transform="translate(20, 520)">
+    <rect x="0" y="0" width="200" height="65" rx="5" fill="rgba(0,0,0,0.3)" stroke="#666" stroke-width="1" />
+    <text x="10" y="20" font-family="Arial" font-size="14" fill="#eee">Legend:</text>
+    
+    <rect x="10" y="30" width="12" height="12" fill="url(#bronzeGradient)" stroke="#CD7F32" stroke-width="1" />
+    <text x="30" y="40" font-family="Arial" font-size="12" fill="#eee">Bronze - Basic Quality</text>
+    
+    <rect x="10" y="50" width="12" height="12" fill="url(#silverGradient)" stroke="#C0C0C0" stroke-width="1" />
+    <text x="30" y="60" font-family="Arial" font-size="12" fill="#eee">Silver - Medium Quality</text>
+    
+    <rect x="130" y="30" width="12" height="12" fill="url(#goldGradient)" stroke="#FFD700" stroke-width="1" />
+    <text x="150" y="40" font-family="Arial" font-size="12" fill="#eee">Gold - High Quality</text>
+    
+    <rect x="130" y="50" width="12" height="12" fill="#d13438" stroke="#ff5c65" stroke-width="1" />
+    <text x="150" y="60" font-family="Arial" font-size="12" fill="#eee">Rejected Data</text>
+  </g>
+</svg>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Sources - Data Ingestion Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg bg-dark navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">Data Ingestion Pipeline</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/data_sources">Data Sources</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitoring">Monitoring</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Data Sources</h5>
+                        <div class="source-filters">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-primary active" data-filter="all">All</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-filter="file">Files</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-filter="database">Database</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-filter="api">API</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-filter="kafka">Kafka</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="sourcesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Source Name</th>
+                                        <th>Type</th>
+                                        <th>Last Run</th>
+                                        <th>Status</th>
+                                        <th>Classification</th>
+                                        <th>Records</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for source in source_status %}
+                                    <tr data-source-type="{{ source.type }}">
+                                        <td>{{ source.name }}</td>
+                                        <td><span class="badge bg-secondary">{{ source.type }}</span></td>
+                                        <td>{{ source.last_run }}</td>
+                                        <td>
+                                            {% if source.status == 'success' %}
+                                            <span class="badge bg-success">Success</span>
+                                            {% elif source.status == 'failed' %}
+                                            <span class="badge bg-danger">Failed</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if source.classification == 'gold' %}
+                                            <span class="badge bg-warning text-dark">Gold</span>
+                                            {% elif source.classification == 'silver' %}
+                                            <span class="badge bg-light text-dark">Silver</span>
+                                            {% elif source.classification == 'bronze' %}
+                                            <span class="badge bg-secondary">Bronze</span>
+                                            {% elif source.classification == 'rejected' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ source.record_count|format_number }}</td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-primary view-details" data-source="{{ source.name }}">
+                                                Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Source Type Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="sourceTypeChart" height="260"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Status Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="statusChart" height="260"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Details Modal -->
+    <div class="modal fade" id="sourceDetailsModal" tabindex="-1" aria-labelledby="sourceDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sourceDetailsModalLabel">Source Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center spinner-container">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="sourceDetailsContent" style="display: none;">
+                        <ul class="nav nav-tabs" id="sourceDetailsTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">Overview</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="false">Configuration</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="metrics-tab" data-bs-toggle="tab" data-bs-target="#metrics" type="button" role="tab" aria-controls="metrics" aria-selected="false">Metrics</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="sourceDetailsTabContent">
+                            <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Basic Information</h6>
+                                        <table class="table">
+                                            <tbody>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <td id="source-name"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Type</th>
+                                                    <td id="source-type"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Last Run</th>
+                                                    <td id="source-last-run"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Status</th>
+                                                    <td id="source-status"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Classification</h6>
+                                        <table class="table">
+                                            <tbody>
+                                                <tr>
+                                                    <th>Classification</th>
+                                                    <td id="source-classification"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Completeness</th>
+                                                    <td id="source-completeness"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Accuracy</th>
+                                                    <td id="source-accuracy"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Timeliness</th>
+                                                    <td id="source-timeliness"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                                <div id="source-config-json" class="bg-dark p-3 rounded mt-3" style="max-height: 400px; overflow-y: auto;">
+                                    <pre><code id="config-content"></code></pre>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Data Quality Metrics</h6>
+                                        <div id="quality-metrics-chart-container">
+                                            <canvas id="qualityMetricsChart" height="260"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Processing Metrics</h6>
+                                        <table class="table">
+                                            <tbody>
+                                                <tr>
+                                                    <th>Records Count</th>
+                                                    <td id="source-records"></td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Processing Time</th>
+                                                    <td id="source-processing-time">N/A</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Records/Second</th>
+                                                    <td id="source-throughput">N/A</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Data Ingestion Pipeline</h5>
+                    <p>A PySpark-based data ingestion and classification system for processing multi-source data in a Cloudera environment.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>© 2023 - PySpark Data Ingestion System</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script>
+        // Initialize Feather icons
+        feather.replace();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Source Type Chart
+            const sourceTypeData = {
+                labels: [],
+                data: [],
+                backgroundColors: []
+            };
+
+            const typeColors = {
+                'file': '#007bff',
+                'database': '#6610f2',
+                'api': '#20c997',
+                'kafka': '#fd7e14'
+            };
+
+            const typeCounts = {};
+            {% for source in source_status %}
+                const type = '{{ source.type }}';
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+            {% endfor %}
+
+            for (const [type, count] of Object.entries(typeCounts)) {
+                sourceTypeData.labels.push(type);
+                sourceTypeData.data.push(count);
+                sourceTypeData.backgroundColors.push(typeColors[type] || '#6c757d');
+            }
+
+            const sourceTypeChart = new Chart(
+                document.getElementById('sourceTypeChart'),
+                {
+                    type: 'doughnut',
+                    data: {
+                        labels: sourceTypeData.labels,
+                        datasets: [{
+                            data: sourceTypeData.data,
+                            backgroundColor: sourceTypeData.backgroundColors
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Status Chart
+            const statusData = {
+                labels: ['Success', 'Pending', 'Failed'],
+                data: [0, 0, 0],
+                backgroundColors: ['#28a745', '#6c757d', '#dc3545']
+            };
+
+            {% for source in source_status %}
+                const status = '{{ source.status }}';
+                if (status === 'success') {
+                    statusData.data[0]++;
+                } else if (status === 'pending') {
+                    statusData.data[1]++;
+                } else if (status === 'failed') {
+                    statusData.data[2]++;
+                }
+            {% endfor %}
+
+            const statusChart = new Chart(
+                document.getElementById('statusChart'),
+                {
+                    type: 'pie',
+                    data: {
+                        labels: statusData.labels,
+                        datasets: [{
+                            data: statusData.data,
+                            backgroundColor: statusData.backgroundColors
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Source Type Filter
+            const filterButtons = document.querySelectorAll('.source-filters button');
+            const sourceRows = document.querySelectorAll('#sourcesTable tbody tr');
+
+            filterButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Update active button
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+
+                    const filter = this.getAttribute('data-filter');
+                    
+                    // Show/hide rows based on filter
+                    sourceRows.forEach(row => {
+                        if (filter === 'all') {
+                            row.style.display = '';
+                        } else {
+                            const rowType = row.getAttribute('data-source-type');
+                            row.style.display = (rowType === filter) ? '' : 'none';
+                        }
+                    });
+                });
+            });
+
+            // Source Details Modal
+            let qualityMetricsChart = null;
+            
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', function() {
+                    const sourceName = this.getAttribute('data-source');
+                    const modal = new bootstrap.Modal(document.getElementById('sourceDetailsModal'));
+                    
+                    // Show modal and loading spinner
+                    modal.show();
+                    document.querySelector('.spinner-container').style.display = 'block';
+                    document.getElementById('sourceDetailsContent').style.display = 'none';
+                    
+                    // Fetch source details
+                    fetch(`/api/source/${sourceName}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            // Hide spinner and show content
+                            document.querySelector('.spinner-container').style.display = 'none';
+                            document.getElementById('sourceDetailsContent').style.display = 'block';
+                            
+                            // Update overview tab
+                            document.getElementById('source-name').textContent = sourceName;
+                            document.getElementById('source-type').textContent = data.status?.type || 'N/A';
+                            document.getElementById('source-last-run').textContent = data.status?.last_run || 'Never';
+                            
+                            const statusEl = document.getElementById('source-status');
+                            if (data.status?.status === 'success') {
+                                statusEl.innerHTML = '<span class="badge bg-success">Success</span>';
+                            } else if (data.status?.status === 'failed') {
+                                statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
+                            } else {
+                                statusEl.innerHTML = '<span class="badge bg-secondary">Pending</span>';
+                            }
+                            
+                            const classificationEl = document.getElementById('source-classification');
+                            if (data.status?.classification === 'gold') {
+                                classificationEl.innerHTML = '<span class="badge bg-warning text-dark">Gold</span>';
+                            } else if (data.status?.classification === 'silver') {
+                                classificationEl.innerHTML = '<span class="badge bg-light text-dark">Silver</span>';
+                            } else if (data.status?.classification === 'bronze') {
+                                classificationEl.innerHTML = '<span class="badge bg-secondary">Bronze</span>';
+                            } else if (data.status?.classification === 'rejected') {
+                                classificationEl.innerHTML = '<span class="badge bg-danger">Rejected</span>';
+                            } else {
+                                classificationEl.innerHTML = '<span class="badge bg-secondary">N/A</span>';
+                            }
+                            
+                            // Metrics (if available)
+                            document.getElementById('source-completeness').textContent = data.status?.quality_metrics?.completeness?.toFixed(4) || 'N/A';
+                            document.getElementById('source-accuracy').textContent = data.status?.quality_metrics?.accuracy?.toFixed(4) || 'N/A';
+                            document.getElementById('source-timeliness').textContent = data.status?.quality_metrics?.timeliness?.toFixed(4) || 'N/A';
+                            document.getElementById('source-records').textContent = data.status?.record_count?.toLocaleString() || 'N/A';
+                            
+                            // Config tab
+                            document.getElementById('config-content').textContent = JSON.stringify(data.config, null, 2);
+                            
+                            // Quality metrics chart
+                            const metrics = data.status?.quality_metrics || {};
+                            
+                            if (qualityMetricsChart) {
+                                qualityMetricsChart.destroy();
+                            }
+                            
+                            if (metrics.completeness !== undefined) {
+                                qualityMetricsChart = new Chart(
+                                    document.getElementById('qualityMetricsChart'),
+                                    {
+                                        type: 'radar',
+                                        data: {
+                                            labels: ['Completeness', 'Accuracy', 'Timeliness'],
+                                            datasets: [{
+                                                label: 'Quality Metrics',
+                                                data: [
+                                                    metrics.completeness || 0, 
+                                                    metrics.accuracy || 0, 
+                                                    metrics.timeliness || 0
+                                                ],
+                                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                                borderColor: 'rgb(54, 162, 235)',
+                                                pointBackgroundColor: 'rgb(54, 162, 235)',
+                                                pointBorderColor: '#fff',
+                                                pointHoverBackgroundColor: '#fff',
+                                                pointHoverBorderColor: 'rgb(54, 162, 235)'
+                                            }]
+                                        },
+                                        options: {
+                                            elements: {
+                                                line: {
+                                                    borderWidth: 3
+                                                }
+                                            },
+                                            scales: {
+                                                r: {
+                                                    angleLines: {
+                                                        display: true
+                                                    },
+                                                    suggestedMin: 0,
+                                                    suggestedMax: 1
+                                                }
+                                            }
+                                        }
+                                    }
+                                );
+                            } else {
+                                document.getElementById('quality-metrics-chart-container').innerHTML = 
+                                    '<div class="alert alert-secondary">No quality metrics available</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching source details:', error);
+                            document.querySelector('.spinner-container').style.display = 'none';
+                            document.getElementById('sourceDetailsContent').innerHTML = 
+                                '<div class="alert alert-danger">Error loading source details</div>';
+                        });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
