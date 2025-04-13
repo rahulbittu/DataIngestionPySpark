@@ -1,15 +1,18 @@
 """
 Flask web dashboard for monitoring the data ingestion pipeline.
+Supports real-time updates through WebSockets.
 """
 
 import os
 import sys
 import json
 import logging
+import time
+import uuid
 from datetime import datetime
 from pathlib import Path
-from threading import Thread
-import time
+from threading import Thread, Lock
+from collections import deque
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -19,14 +22,17 @@ logging.basicConfig(level=logging.DEBUG)
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session
+from flask_socketio import SocketIO, emit
 import pandas as pd
 
 from src.utils.config_loader import ConfigLoader
 from src.utils.logging_utils import setup_logging
 
+# Initialize Flask app with SocketIO support
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
+app.secret_key = os.environ.get("SESSION_SECRET", str(uuid.uuid4()))
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize schema registry for schema validation if available
 schema_registry = None
@@ -458,6 +464,157 @@ def api_source_details(source_name):
     return jsonify({"error": "Source not found"}), 404
 
 
+# Real-time event queue for storing latest events
+event_queue = deque(maxlen=100)
+metrics_lock = Lock()  # Lock for thread-safe metrics updates
+
+# SocketIO event handlers
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    logger.info(f"Client connected: {request.sid}")
+    # Send current state to the client
+    emit('pipeline_metrics', pipeline_metrics)
+    emit('source_status', source_status)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    logger.info(f"Client disconnected: {request.sid}")
+
+@socketio.on('subscribe_to_events')
+def handle_subscribe(data):
+    """Handle client subscription to events"""
+    source_filter = data.get('source_filter', None)
+    logger.info(f"Client {request.sid} subscribed to events with filter: {source_filter}")
+    # Send existing events
+    filtered_events = event_queue
+    if source_filter:
+        filtered_events = [e for e in event_queue if e.get('source_name') == source_filter]
+    emit('events', filtered_events)
+
+def update_metrics(new_metrics, emit_event=True):
+    """
+    Update pipeline metrics with thread safety.
+    
+    Args:
+        new_metrics: New metrics to update
+        emit_event: Whether to emit a WebSocket event
+    """
+    with metrics_lock:
+        # Update metrics
+        pipeline_metrics.update(new_metrics)
+        
+        # Add to history if timestamp is provided
+        if 'last_run' in new_metrics:
+            history_item = {
+                'timestamp': new_metrics['last_run'],
+                'sources_processed': pipeline_metrics['sources_processed'],
+                'records_processed': pipeline_metrics['records_processed']
+            }
+            pipeline_metrics['history'].append(history_item)
+    
+    # Emit event if requested
+    if emit_event:
+        socketio.emit('pipeline_metrics', pipeline_metrics)
+
+def update_source_status(source_name, status_update, emit_event=True):
+    """
+    Update source status with thread safety.
+    
+    Args:
+        source_name: Name of the source
+        status_update: Status update data
+        emit_event: Whether to emit a WebSocket event
+    """
+    updated = False
+    
+    # Find and update the source
+    for i, source in enumerate(source_status):
+        if source['name'] == source_name:
+            source_status[i].update(status_update)
+            updated = True
+            break
+    
+    # Add new source if not found
+    if not updated:
+        new_source = {'name': source_name}
+        new_source.update(status_update)
+        source_status.append(new_source)
+    
+    # Emit event if requested
+    if emit_event:
+        socketio.emit('source_status', source_status)
+
+def publish_event(event_data):
+    """
+    Publish an event to connected clients.
+    
+    Args:
+        event_data: Event data to publish
+    """
+    # Add timestamp if not present
+    if 'timestamp' not in event_data:
+        event_data['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Add event to queue
+    event_queue.append(event_data)
+    
+    # Emit event to all clients
+    socketio.emit('event', event_data)
+
+def process_stream_event(event):
+    """
+    Process a streaming event from Kafka.
+    
+    Args:
+        event: Event data from Kafka
+    """
+    try:
+        # Extract event data
+        source_name = event.get('source_name', 'unknown')
+        event_type = event.get('event_type', 'data')
+        timestamp = event.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        
+        # Create event for websocket
+        event_data = {
+            'source_name': source_name,
+            'event_type': event_type,
+            'timestamp': timestamp,
+            'data': event
+        }
+        
+        # Publish event
+        publish_event(event_data)
+        
+        # Update metrics if metrics event
+        if event_type == 'metrics':
+            metrics_data = event.get('metrics', {})
+            update_metrics(metrics_data)
+        
+        # Update source status if status event
+        if event_type == 'source_status':
+            status_data = event.get('status', {})
+            update_source_status(source_name, status_data)
+            
+    except Exception as e:
+        logger.error(f"Error processing stream event: {e}")
+
+# Initialize streaming pipeline if kafka is configured
+def init_streaming():
+    """Initialize streaming data ingestion for the dashboard"""
+    try:
+        # This will be implemented when we integrate the pipeline
+        # For now, we'll simulate with a background thread
+        logger.info("Initializing streaming for dashboard")
+    except Exception as e:
+        logger.error(f"Error initializing streaming: {e}")
+
+# Start streaming initialization in background
+streaming_thread = Thread(target=init_streaming)
+streaming_thread.daemon = True
+streaming_thread.start()
+
 @app.template_filter('format_number')
 def format_number(value):
     """
@@ -467,4 +624,4 @@ def format_number(value):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

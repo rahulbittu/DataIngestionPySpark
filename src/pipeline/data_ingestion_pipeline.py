@@ -1,15 +1,18 @@
 """
 Data ingestion pipeline for processing data from various sources,
 classifying it, and passing it to the transform layer.
+Supports both batch and real-time streaming processing.
 """
 
 import os
 import time
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+import threading
+from typing import Dict, Any, List, Optional, Tuple, Callable, Union
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import lit, current_timestamp
+from pyspark.sql.functions import lit, current_timestamp, window, col
+from pyspark.sql.streaming import StreamingQuery
 
 from src.connectors import (
     FileConnector,
@@ -341,14 +344,280 @@ class DataIngestionPipeline:
             'source_metrics': source_metrics
         }
     
+    def _save_streaming_classified_data(
+        self,
+        streaming_df: DataFrame,
+        classification: str,
+        source_name: str,
+        checkpoint_dir: str = "./checkpoints",
+        query_name: Optional[str] = None,
+        trigger_interval: Optional[str] = None
+    ) -> StreamingQuery:
+        """
+        Save classified streaming data to the appropriate target path.
+        
+        Args:
+            streaming_df: Streaming DataFrame to save
+            classification: Classification level (bronze, silver, gold, rejected)
+            source_name: Name of the data source
+            checkpoint_dir: Directory for checkpoints
+            query_name: Optional name for the streaming query
+            trigger_interval: Optional trigger interval (e.g., "10 seconds")
+            
+        Returns:
+            StreamingQuery: The streaming query
+            
+        Raises:
+            ValueError: If there's no target path for the classification level
+        """
+        if classification not in self.target_paths:
+            raise ValueError(f"No target path defined for classification level: {classification}")
+        
+        target_base_path = self.target_paths.get(classification)
+        target_path = os.path.join(target_base_path, source_name)
+        
+        # Add additional metadata
+        output_df = streaming_df.withColumn("ingestion_timestamp", current_timestamp()) \
+            .withColumn("classification_level", lit(classification))
+        
+        # Create query name if not provided
+        actual_query_name = query_name or f"save-{classification}-data-{source_name}"
+        checkpoint_location = os.path.join(checkpoint_dir, actual_query_name)
+        
+        # Create the streaming writer
+        writer = output_df.writeStream \
+            .format("parquet") \
+            .option("path", target_path) \
+            .option("checkpointLocation", checkpoint_location) \
+            .partitionBy("ingestion_timestamp") \
+            .queryName(actual_query_name)
+        
+        # Add trigger if specified
+        if trigger_interval:
+            writer = writer.trigger(processingTime=trigger_interval)
+        
+        # Start the streaming query
+        self.logger.info(f"Starting streaming query to save {classification} data from {source_name} to {target_path}")
+        query = writer.start()
+        
+        return query
+    
+    def process_streaming_source(
+        self,
+        source_config: Dict[str, Any],
+        source_type: str,
+        checkpoint_dir: str = "./checkpoints",
+        trigger_interval: Optional[str] = None,
+        window_duration: Optional[str] = None,
+        sliding_duration: Optional[str] = None
+    ) -> Optional[Dict[str, StreamingQuery]]:
+        """
+        Process a streaming data source.
+        
+        Args:
+            source_config: Source configuration
+            source_type: Type of source ('kafka')
+            checkpoint_dir: Directory for checkpoints
+            trigger_interval: Optional trigger interval
+            window_duration: Optional window duration for windowed operations
+            sliding_duration: Optional sliding duration for windowed operations
+            
+        Returns:
+            Optional[Dict[str, StreamingQuery]]: Dictionary of streaming queries or None if failed
+        """
+        source_name = source_config.get('name', 'unnamed_source')
+        self.logger.info(f"Processing streaming {source_type} source: {source_name}")
+        
+        try:
+            # Only Kafka is supported for streaming currently
+            if source_type != 'kafka':
+                self.logger.error(f"Streaming not supported for source type: {source_type}")
+                return None
+            
+            # Create connector
+            connector = self._create_connector(source_config, source_type)
+            
+            # Connect to source
+            if not connector.connect():
+                self.logger.error(f"Failed to connect to {source_type} source: {source_name}")
+                return None
+            
+            # Create classifier
+            classifier = DataClassifier(
+                self.spark, 
+                source_config, 
+                self.classification_thresholds, 
+                self.logger
+            )
+            
+            # Define the streaming processing function
+            def process_streaming_data(stream_df: DataFrame) -> DataFrame:
+                """Process streaming data through classification pipeline"""
+                
+                # Apply windowing if specified
+                if window_duration:
+                    # Assume there's a timestamp column or add processing time
+                    if "_event_time" in stream_df.columns:
+                        timestamp_col = "_event_time"
+                    else:
+                        stream_df = stream_df.withColumn("_processing_time", current_timestamp())
+                        timestamp_col = "_processing_time"
+                    
+                    # Apply windowing
+                    if sliding_duration:
+                        stream_df = stream_df.withWatermark(timestamp_col, window_duration) \
+                            .groupBy(window(col(timestamp_col), window_duration, sliding_duration))
+                    else:
+                        stream_df = stream_df.withWatermark(timestamp_col, window_duration) \
+                            .groupBy(window(col(timestamp_col), window_duration))
+                
+                # Apply schema validation (but not full classification as it requires count operations)
+                # This is a simplified version for streaming
+                is_valid, _ = classifier.validate_schema(stream_df)
+                
+                # Add validation metadata
+                result_df = stream_df.withColumn("_schema_valid", lit(is_valid))
+                
+                # We can't do full classification in streaming mode due to stateless operation
+                # requirements, but we can add some basic quality indicators
+                result_df = result_df.withColumn("_quality_check_time", current_timestamp())
+                
+                # Return processed DataFrame
+                return result_df
+            
+            # Start the streaming query
+            streaming_query = connector.start_streaming(
+                process_func=process_streaming_data,
+                output_mode="append",
+                checkpoint_location=checkpoint_dir,
+                query_name=f"stream-{source_name}",
+                trigger_interval=trigger_interval,
+                output_sink="memory"  # Start with memory sink for initial processing
+            )
+            
+            self.logger.info(f"Successfully started streaming query for {source_type} source: {source_name}")
+            
+            # Return the streaming query
+            return {
+                'main_query': streaming_query
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error processing streaming {source_type} source {source_name}: {str(e)}")
+            return None
+    
+    def start_streaming_pipeline(
+        self, 
+        checkpoint_dir: str = "./checkpoints",
+        trigger_interval: str = "10 seconds",
+        window_duration: Optional[str] = None,
+        sliding_duration: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Start the streaming data ingestion pipeline.
+        
+        Args:
+            checkpoint_dir: Directory for checkpoints
+            trigger_interval: Trigger interval (e.g., "10 seconds")
+            window_duration: Optional window duration for windowed operations
+            sliding_duration: Optional sliding duration for windowed operations
+            
+        Returns:
+            Dict[str, Any]: Dictionary of streaming queries
+        """
+        self.logger.info("Starting streaming data ingestion pipeline")
+        
+        # Get all sources
+        all_sources = self.config_loader.get_all_sources()
+        
+        # Process streaming sources (only Kafka for now)
+        streaming_queries = {}
+        
+        # Process Kafka sources
+        for source_config in all_sources.get('kafka_sources', []):
+            source_name = source_config.get('name', 'unnamed_kafka_source')
+            
+            # Skip non-streaming sources
+            if not source_config.get('streaming_enabled', False):
+                self.logger.info(f"Skipping non-streaming Kafka source: {source_name}")
+                continue
+            
+            # Process streaming source
+            queries = self.process_streaming_source(
+                source_config=source_config,
+                source_type='kafka',
+                checkpoint_dir=checkpoint_dir,
+                trigger_interval=trigger_interval,
+                window_duration=window_duration,
+                sliding_duration=sliding_duration
+            )
+            
+            if queries:
+                streaming_queries[source_name] = queries
+                self.logger.info(f"Started streaming for Kafka source: {source_name}")
+            else:
+                self.logger.error(f"Failed to start streaming for Kafka source: {source_name}")
+        
+        self.logger.info(f"Streaming pipeline started with {len(streaming_queries)} sources")
+        return streaming_queries
+    
+    def process_streaming_events(
+        self,
+        source_config: Dict[str, Any],
+        event_processor: Callable[[Dict[str, Any]], None],
+        batch_mode: bool = False,
+        batch_size: int = 100,
+        run_in_thread: bool = True
+    ) -> Optional[threading.Thread]:
+        """
+        Process streaming events directly with a callback function.
+        This is an alternative to Spark Structured Streaming for lower-latency processing.
+        
+        Args:
+            source_config: Source configuration
+            event_processor: Function to process each event
+            batch_mode: Whether to process events in batches
+            batch_size: Batch size when in batch mode
+            run_in_thread: Whether to run in a separate thread
+            
+        Returns:
+            Optional[threading.Thread]: Thread if running in thread mode, None otherwise
+        """
+        source_name = source_config.get('name', 'unnamed_source')
+        
+        try:
+            # Only Kafka is supported for streaming currently
+            connector = self._create_connector(source_config, 'kafka')
+            
+            # Connect to source
+            if not connector.connect():
+                self.logger.error(f"Failed to connect to Kafka source: {source_name}")
+                return None
+            
+            # Start event stream
+            result = connector.start_event_stream(
+                consumer_name=f"event-consumer-{source_name}",
+                process_func=event_processor,
+                batch_mode=batch_mode,
+                batch_size=batch_size,
+                run_in_thread=run_in_thread
+            )
+            
+            self.logger.info(f"Started event stream for Kafka source: {source_name}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error starting event stream for {source_name}: {str(e)}")
+            return None
+    
     def run_pipeline(self) -> Dict[str, Any]:
         """
-        Run the data ingestion pipeline.
+        Run the data ingestion pipeline in batch mode.
         
         Returns:
             Dict[str, Any]: Pipeline metrics
         """
-        self.logger.info("Starting data ingestion pipeline")
+        self.logger.info("Starting data ingestion pipeline (batch mode)")
         
         try:
             # Process all sources
