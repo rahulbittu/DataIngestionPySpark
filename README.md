@@ -8,6 +8,7 @@ A robust, scalable data ingestion and classification system built with PySpark f
 - **Real-time Streaming**: Support for both batch and real-time streaming processing
 - **Data Classification**: Automatic classification into Bronze, Silver, and Gold tiers based on data quality
 - **Schema Registry**: Dynamic schema validation and evolution capabilities
+- **Elastic Stack Integration**: Full integration with Elasticsearch for data storage and Kibana for visualization
 - **Web Dashboard**: Real-time monitoring with WebSocket-based updates
 - **Event-driven Architecture**: Complete event system for asynchronous processing
 
@@ -76,6 +77,24 @@ graph TD
     CL --> GD[Gold Tier]
     CL --> RJ[Rejected]
     
+    %% Elasticsearch Integration
+    BZ --> ES_BZ[Bronze ES Index]
+    SV --> ES_SV[Silver ES Index]
+    GD --> ES_GD[Gold ES Index]
+    RJ --> ES_RJ[Rejected ES Index]
+    
+    %% Pipeline Metrics to Elasticsearch 
+    IN --> MT[Pipeline Metrics]
+    CL --> MT
+    MT --> ES_MT[Metrics ES Index]
+    
+    %% Kibana Dashboards
+    ES_BZ --> KB[Kibana Dashboards]
+    ES_SV --> KB
+    ES_GD --> KB
+    ES_RJ --> KB
+    ES_MT --> KB
+    
     %% Web dashboard
     EQ --> WS[WebSocket Server]
     WS --> WD[Web Dashboard]
@@ -90,6 +109,7 @@ graph TD
     WD --> MP[Monitoring Page]
     WD --> DSP[Data Sources Page]
     WD --> SV[Schema Validation]
+    WD --> ELD[ES Integration Status]
     MP --> RT[Real-time Event Log]
     MP --> MS[Metrics Summary]
     
@@ -98,11 +118,13 @@ graph TD
     classDef processing fill:#bbf,stroke:#333,stroke-width:2px
     classDef classification fill:#bfb,stroke:#333,stroke-width:2px
     classDef dashboard fill:#fbb,stroke:#333,stroke-width:2px
+    classDef elastic fill:#ff7, stroke:#333, stroke-width:2px
     
     class DS_F,DS_D,DS_A,DS_K source
-    class IN,BP,SP,EM,EQ processing
+    class IN,BP,SP,EM,EQ,MT processing
     class CL,BZ,SV,GD,RJ classification
-    class WD,DH,MP,DSP,SV,RT,MS dashboard
+    class WD,DH,MP,DSP,SV,RT,MS,ELD dashboard
+    class ES_BZ,ES_SV,ES_GD,ES_RJ,ES_MT,KB elastic
 ```
 
 ## 📂 Project Structure
@@ -128,6 +150,7 @@ graph TD
 │   │   ├── api_connector.py      # API-based data source connector
 │   │   ├── base_connector.py     # Base class for all connectors
 │   │   ├── database_connector.py # Database connector
+│   │   ├── elasticsearch_connector.py # Elasticsearch connector
 │   │   ├── file_connector.py     # File-based connector
 │   │   └── kafka_connector.py    # Kafka streaming connector
 │   │
@@ -336,6 +359,19 @@ The system classifies data based on the following quality metrics:
 - **Event Log**: Real-time stream of system events
 - **Responsive Design**: Works on desktop and mobile devices
 
+## 📊 Elasticsearch & Kibana Integration
+
+- **Data Storage**: Classified data (bronze, silver, gold, rejected) is stored in dedicated Elasticsearch indices
+- **Date-based Indices**: Data is organized in time-based indices for efficient retention management
+- **Metrics Tracking**: Pipeline metrics are stored in Elasticsearch for long-term trend analysis
+- **Kibana Dashboards**: Pre-configured Kibana dashboards for:
+  - Pipeline Overview: High-level metrics and system performance
+  - Data Quality Metrics: Detailed quality distribution and trends
+  - Source Monitoring: Per-source performance and health metrics
+- **Real-time Visualization**: Real-time updates to dashboards as data is processed
+- **Query Capabilities**: Advanced search and query capabilities through Elasticsearch's query DSL
+- **Index Lifecycle Management**: Automated management of index retention and archiving
+
 ## 🛠️ Setup and Usage
 
 ### Prerequisites
@@ -343,6 +379,8 @@ The system classifies data based on the following quality metrics:
 - Python 3.8+
 - Apache Spark 3.0+
 - Kafka (for streaming features)
+- Elasticsearch 7.x+ (for data storage and indexing)
+- Kibana 7.x+ (for advanced visualization and dashboards)
 - PostgreSQL or other database (optional)
 
 ### Installation
