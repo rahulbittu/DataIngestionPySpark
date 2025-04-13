@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Import web dashboard app for gunicorn
-from web_dashboard.app import app, publish_event, update_metrics, update_source_status
+from web_dashboard.app import app
 
 # Import pipeline components
 from src.utils.logging_utils import setup_logging
@@ -208,20 +208,7 @@ def handle_schema_event(event_data):
     # Log the event
     logger.info(f"Schema event received: {event_type}")
     
-    # Publish to web dashboard
-    publish_event({
-        'event_type': 'schema_event',
-        'source_name': 'schema_registry',
-        'data': event_data
-    })
-    
-    # Handle specific event types
-    if event_type == 'schema_evolved':
-        # Update metrics
-        update_metrics({
-            'schema_evolved_count': 1,
-            'last_schema_evolution': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        })
+    # For future implementation with dashboard (removed WebSocket)
 
 
 def process_streaming_event(event_data):
@@ -236,18 +223,7 @@ def process_streaming_event(event_data):
         source_name = event_data.get('source_name', 'unknown')
         event_type = event_data.get('event_type', 'data')
         
-        # Publish event to dashboard
-        publish_event(event_data)
-        
-        # Update metrics if it's a metrics event
-        if event_type == 'metrics':
-            metrics_data = event_data.get('metrics', {})
-            update_metrics(metrics_data)
-        
-        # Update source status if it's a status event
-        if event_type == 'source_status':
-            status_data = event_data.get('status', {})
-            update_source_status(source_name, status_data)
+        # For future implementation with dashboard (removed WebSocket)
             
     except Exception as e:
         logger = logging.getLogger("streaming_events")

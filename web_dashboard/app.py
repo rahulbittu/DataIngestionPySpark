@@ -23,16 +23,14 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from flask import Flask, render_template, jsonify, request, session
-from flask_socketio import SocketIO, emit
 import pandas as pd
 
 from src.utils.config_loader import ConfigLoader
 from src.utils.logging_utils import setup_logging
 
-# Initialize Flask app with SocketIO support
+# Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", str(uuid.uuid4()))
-socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize schema registry for schema validation if available
 schema_registry = None
@@ -363,175 +361,46 @@ def api_diagram():
         if es_config:
             elasticsearch_enabled = True
     
-    # Create a diagram that shows Hive and Elasticsearch integrations
-    if hive_enabled and elasticsearch_enabled:
-        mermaid_diagram = """
-        graph TD
-            A[Data Sources] --> B[Ingestion Layer]
-            
-            %% Data Sources
-            A --> C1[File Sources]
-            A --> C2[Database Sources]
-            A --> C3[API Sources]
-            A --> C4[Kafka Sources]
-            
-            %% Ingestion Process
-            B --> D[Data Classification]
-            D --> E1[Bronze]
-            D --> E2[Silver]
-            D --> E3[Gold]
-            D --> E4[Rejected]
-            
-            %% Classification Rules
-            F[Classification Rules] --> D
-            F1[Completeness] --> F
-            F2[Accuracy] --> F
-            F3[Timeliness] --> F
-            
-            %% Primary Storage (Hive)
-            E1 --> H1[Bronze Hive Tables]
-            E2 --> H2[Silver Hive Tables]
-            E3 --> H3[Gold Hive Tables]
-            E4 --> H4[Rejected Hive Tables]
-            
-            %% Secondary Storage (Elasticsearch)
-            E1 --> ES1[Bronze Elasticsearch Index]
-            E2 --> ES2[Silver Elasticsearch Index]
-            E3 --> ES3[Gold Elasticsearch Index]
-            E4 --> ES4[Rejected Elasticsearch Index]
-            
-            %% Elasticsearch Monitoring
-            B --> M[Metrics]
-            D --> M
-            M --> ESM[Metrics Elasticsearch Index]
-            
-            %% Kibana
-            ES1 --> K[Kibana Dashboards]
-            ES2 --> K
-            ES3 --> K
-            ES4 --> K
-            ESM --> K
-            
-            %% Visualization
-            K --> V1[Pipeline Overview]
-            K --> V2[Data Quality Metrics]
-            K --> V3[Source Monitoring]
-        """
-    elif hive_enabled:
-        mermaid_diagram = """
-        graph TD
-            A[Data Sources] --> B[Ingestion Layer]
-            
-            %% Data Sources
-            A --> C1[File Sources]
-            A --> C2[Database Sources]
-            A --> C3[API Sources]
-            A --> C4[Kafka Sources]
-            
-            %% Ingestion Process
-            B --> D[Data Classification]
-            D --> E1[Bronze]
-            D --> E2[Silver]
-            D --> E3[Gold]
-            D --> E4[Rejected]
-            
-            %% Classification Rules
-            F[Classification Rules] --> D
-            F1[Completeness] --> F
-            F2[Accuracy] --> F
-            F3[Timeliness] --> F
-            
-            %% Primary Storage (Hive)
-            E1 --> H1[Bronze Hive Tables]
-            E2 --> H2[Silver Hive Tables]
-            E3 --> H3[Gold Hive Tables]
-            E4 --> H4[Rejected Hive Tables]
-            
-            %% Monitoring
-            B --> M[Metrics]
-            D --> M
-            M --> L[Logging & Monitoring]
-        """
-    elif elasticsearch_enabled:
-        mermaid_diagram = """
-        graph TD
-            A[Data Sources] --> B[Ingestion Layer]
-            
-            %% Data Sources
-            A --> C1[File Sources]
-            A --> C2[Database Sources]
-            A --> C3[API Sources]
-            A --> C4[Kafka Sources]
-            
-            %% Ingestion Process
-            B --> D[Data Classification]
-            D --> E1[Bronze]
-            D --> E2[Silver]
-            D --> E3[Gold]
-            D --> E4[Rejected]
-            
-            %% Classification Rules
-            F[Classification Rules] --> D
-            F1[Completeness] --> F
-            F2[Accuracy] --> F
-            F3[Timeliness] --> F
-            
-            %% Output with Elasticsearch
-            E1 --> ES1[Bronze Elasticsearch Index]
-            E2 --> ES2[Silver Elasticsearch Index]
-            E3 --> ES3[Gold Elasticsearch Index]
-            E4 --> ES4[Rejected Elasticsearch Index]
-            
-            %% Elasticsearch Monitoring
-            B --> M[Metrics]
-            D --> M
-            M --> ESM[Metrics Elasticsearch Index]
-            
-            %% Kibana
-            ES1 --> K[Kibana Dashboards]
-            ES2 --> K
-            ES3 --> K
-            ES4 --> K
-            ESM --> K
-            
-            %% Visualization
-            K --> V1[Pipeline Overview]
-            K --> V2[Data Quality Metrics]
-            K --> V3[Source Monitoring]
-        """
-    else:
-        mermaid_diagram = """
-        graph TD
-            A[Data Sources] --> B[Ingestion Layer]
-            
-            %% Data Sources
-            A --> C1[File Sources]
-            A --> C2[Database Sources]
-            A --> C3[API Sources]
-            A --> C4[Kafka Sources]
-            
-            %% Ingestion Process
-            B --> D[Data Classification]
-            D --> E1[Bronze]
-            D --> E2[Silver]
-            D --> E3[Gold]
-            D --> E4[Rejected]
-            
-            %% Classification Rules
-            F[Classification Rules] --> D
-            F1[Completeness] --> F
-            F2[Accuracy] --> F
-            F3[Timeliness] --> F
-            
-            %% Output
-            E1 --> G[Transform Layer]
-            E2 --> G
-            E3 --> G
-            
-            %% Monitoring
-            B --> H[Monitoring & Logging]
-            D --> H
-        """
+    # Create a simple black and white data flow diagram
+    mermaid_diagram = """
+    %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff' }}}%%
+    graph TD
+        A[Data Sources] --> B[Ingestion Layer]
+        
+        %% Data Sources
+        A --> C1[File Sources]
+        A --> C2[Database Sources]
+        A --> C3[API Sources]
+        A --> C4[Kafka Sources]
+        
+        %% Ingestion Process
+        B --> D[Data Classification]
+        D --> E1[Bronze]
+        D --> E2[Silver]
+        D --> E3[Gold]
+        D --> E4[Rejected]
+        
+        %% Classification Rules
+        F[Classification Rules] --> D
+        F1[Completeness] --> F
+        F2[Accuracy] --> F
+        F3[Timeliness] --> F
+        
+        %% Storage Options
+        E1 --> S1[Storage Layer]
+        E2 --> S1
+        E3 --> S1
+        E4 --> S1
+        
+        %% Conditional Rendering for Hive
+        S1 --> H[Hive Tables]
+        S1 --> ES[Elasticsearch]
+        
+        %% Monitoring
+        B --> M[Metrics]
+        D --> M
+        M --> L[Monitoring Dashboard]
+    """
     
     return jsonify({"diagram": mermaid_diagram})
 
@@ -691,37 +560,14 @@ event_queue = deque(maxlen=100)
 metrics_lock = Lock()  # Lock for thread-safe metrics updates
 
 # SocketIO event handlers
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection"""
-    logger.info(f"Client connected: {request.sid}")
-    # Send current state to the client
-    emit('pipeline_metrics', pipeline_metrics)
-    emit('source_status', source_status)
+# Remove WebSocket event handlers
 
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    logger.info(f"Client disconnected: {request.sid}")
-
-@socketio.on('subscribe_to_events')
-def handle_subscribe(data):
-    """Handle client subscription to events"""
-    source_filter = data.get('source_filter', None)
-    logger.info(f"Client {request.sid} subscribed to events with filter: {source_filter}")
-    # Send existing events
-    filtered_events = event_queue
-    if source_filter:
-        filtered_events = [e for e in event_queue if e.get('source_name') == source_filter]
-    emit('events', filtered_events)
-
-def update_metrics(new_metrics, emit_event=True):
+def update_metrics(new_metrics):
     """
     Update pipeline metrics with thread safety.
     
     Args:
         new_metrics: New metrics to update
-        emit_event: Whether to emit a WebSocket event
     """
     with metrics_lock:
         # Update metrics
@@ -735,19 +581,14 @@ def update_metrics(new_metrics, emit_event=True):
                 'records_processed': pipeline_metrics['records_processed']
             }
             pipeline_metrics['history'].append(history_item)
-    
-    # Emit event if requested
-    if emit_event:
-        socketio.emit('pipeline_metrics', pipeline_metrics)
 
-def update_source_status(source_name, status_update, emit_event=True):
+def update_source_status(source_name, status_update):
     """
     Update source status with thread safety.
     
     Args:
         source_name: Name of the source
         status_update: Status update data
-        emit_event: Whether to emit a WebSocket event
     """
     updated = False
     
@@ -763,14 +604,10 @@ def update_source_status(source_name, status_update, emit_event=True):
         new_source = {'name': source_name}
         new_source.update(status_update)
         source_status.append(new_source)
-    
-    # Emit event if requested
-    if emit_event:
-        socketio.emit('source_status', source_status)
 
 def publish_event(event_data):
     """
-    Publish an event to connected clients.
+    Add an event to the queue.
     
     Args:
         event_data: Event data to publish
@@ -781,61 +618,6 @@ def publish_event(event_data):
     
     # Add event to queue
     event_queue.append(event_data)
-    
-    # Emit event to all clients
-    socketio.emit('event', event_data)
-
-def process_stream_event(event):
-    """
-    Process a streaming event from Kafka.
-    
-    Args:
-        event: Event data from Kafka
-    """
-    try:
-        # Extract event data
-        source_name = event.get('source_name', 'unknown')
-        event_type = event.get('event_type', 'data')
-        timestamp = event.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        
-        # Create event for websocket
-        event_data = {
-            'source_name': source_name,
-            'event_type': event_type,
-            'timestamp': timestamp,
-            'data': event
-        }
-        
-        # Publish event
-        publish_event(event_data)
-        
-        # Update metrics if metrics event
-        if event_type == 'metrics':
-            metrics_data = event.get('metrics', {})
-            update_metrics(metrics_data)
-        
-        # Update source status if status event
-        if event_type == 'source_status':
-            status_data = event.get('status', {})
-            update_source_status(source_name, status_data)
-            
-    except Exception as e:
-        logger.error(f"Error processing stream event: {e}")
-
-# Initialize streaming pipeline if kafka is configured
-def init_streaming():
-    """Initialize streaming data ingestion for the dashboard"""
-    try:
-        # This will be implemented when we integrate the pipeline
-        # For now, we'll simulate with a background thread
-        logger.info("Initializing streaming for dashboard")
-    except Exception as e:
-        logger.error(f"Error initializing streaming: {e}")
-
-# Start streaming initialization in background
-streaming_thread = Thread(target=init_streaming)
-streaming_thread.daemon = True
-streaming_thread.start()
 
 @app.template_filter('format_number')
 def format_number(value):
@@ -846,4 +628,4 @@ def format_number(value):
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
