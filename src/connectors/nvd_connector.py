@@ -1,10 +1,14 @@
 """
 NVD Connector for fetching Common Vulnerabilities and Exposures (CVE) data.
 This connector fetches data from the NVD API and converts it to a Spark DataFrame.
+Supports incremental loading to only fetch new or updated CVEs since the last run.
 """
 import json
 import logging
+import os
 import time
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -107,11 +111,18 @@ class NVDConnector(BaseConnector):
         self.start_date = self.source_config.get('start_date')
         self.end_date = self.source_config.get('end_date')
         self.additional_query_params = self.source_config.get('additional_query_params', {})
+        self.incremental_load = self.source_config.get('incremental_load', True)
+        self.last_run_timestamp = self.source_config.get('last_run_timestamp')
+        self.state_path = self.source_config.get('state_path', './nvd_state')
         
         # Setup headers if API key is provided
         self.headers = {}
         if self.api_key:
             self.headers["apiKey"] = self.api_key
+            
+        # Load the last state if incremental load is enabled
+        if self.incremental_load:
+            self._load_state()
 
     def _validate_source_config(self) -> None:
         """
@@ -163,9 +174,59 @@ class NVDConnector(BaseConnector):
             self.logger.exception(f"Error connecting to NVD API: {str(e)}")
             return False
 
+    def _load_state(self) -> None:
+        """
+        Load the last run state from file. This state includes the timestamp
+        of the last successful run, which is used for incremental loading.
+        """
+        try:
+            state_dir = Path(self.state_path)
+            state_file = state_dir / f"{self.name}_state.json"
+            
+            if not state_dir.exists():
+                state_dir.mkdir(parents=True, exist_ok=True)
+                self.logger.info(f"Created state directory: {state_dir}")
+                
+            if state_file.exists():
+                with open(state_file, 'r') as f:
+                    state_data = json.load(f)
+                    self.last_run_timestamp = state_data.get('last_run_timestamp')
+                    self.logger.info(f"Loaded state from {state_file}, last run: {self.last_run_timestamp}")
+            else:
+                self.logger.info(f"No state file found at {state_file}, starting with full load")
+        except Exception as e:
+            self.logger.warning(f"Error loading state: {str(e)}. Starting with full load.")
+    
+    def _save_state(self) -> None:
+        """
+        Save the current run state to file, including the timestamp.
+        This will be used for the next incremental load.
+        """
+        try:
+            state_dir = Path(self.state_path)
+            state_file = state_dir / f"{self.name}_state.json"
+            
+            if not state_dir.exists():
+                state_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Use the current time as the last run timestamp
+            current_time = datetime.utcnow().isoformat() + "Z"
+            
+            with open(state_file, 'w') as f:
+                json.dump({
+                    'last_run_timestamp': current_time,
+                    'source_name': self.name,
+                    'records_processed': self.records_processed if hasattr(self, 'records_processed') else 0
+                }, f, indent=2)
+                
+            self.logger.info(f"Saved state to {state_file}, timestamp: {current_time}")
+        except Exception as e:
+            self.logger.warning(f"Error saving state: {str(e)}")
+    
     def read_data(self) -> DataFrame:
         """
         Read CVE data from NVD API into a Spark DataFrame.
+        Supports incremental loading based on the lastModified date.
         
         Returns:
             DataFrame: The CVE data as a Spark DataFrame
@@ -173,7 +234,10 @@ class NVDConnector(BaseConnector):
         Raises:
             Exception: If there's an error reading from the API
         """
-        self.logger.info("Fetching CVE data from NVD API")
+        if self.incremental_load and self.last_run_timestamp:
+            self.logger.info(f"Performing incremental load since {self.last_run_timestamp}")
+        else:
+            self.logger.info("Performing full load of CVE data")
         
         try:
             # Build base query parameters
@@ -181,13 +245,18 @@ class NVDConnector(BaseConnector):
                 "resultsPerPage": self.results_per_page
             }
             
-            # Add date range if specified
-            if self.start_date:
-                params["pubStartDate"] = self.start_date
-            
-            if self.end_date:
-                params["pubEndDate"] = self.end_date
+            # For incremental loading, use the lastModifiedStartDate parameter
+            if self.incremental_load and self.last_run_timestamp:
+                params["lastModStartDate"] = self.last_run_timestamp
+                self.logger.info(f"Fetching CVEs modified since {self.last_run_timestamp}")
+            else:
+                # If not incremental or no last run, use the configured date range
+                if self.start_date:
+                    params["pubStartDate"] = self.start_date
                 
+                if self.end_date:
+                    params["pubEndDate"] = self.end_date
+                    
             # Add any additional parameters
             params.update(self.additional_query_params)
             
@@ -237,13 +306,21 @@ class NVDConnector(BaseConnector):
             
             # Convert the raw data to a Spark DataFrame
             self.logger.info(f"Total CVEs fetched: {len(all_cves)}")
+            self.records_processed = len(all_cves)
             
             if not all_cves:
                 self.logger.warning("No CVE data fetched from NVD API")
+                # Save state even if no new data
+                if self.incremental_load:
+                    self._save_state()
                 return self.spark.createDataFrame([], self._CVE_SCHEMA)
             
             # Create DataFrame from the collected data
             cve_df = self.spark.createDataFrame(all_cves)
+            
+            # Save the current run timestamp for the next incremental load
+            if self.incremental_load:
+                self._save_state()
             
             return cve_df
             
@@ -297,5 +374,7 @@ class NVDConnector(BaseConnector):
             "description": "National Vulnerability Database CVE data",
             "start_date": self.start_date,
             "end_date": self.end_date,
+            "incremental_load": self.incremental_load,
+            "last_run_timestamp": self.last_run_timestamp,
             "connection_status": "connected" if self.connect() else "disconnected"
         }
