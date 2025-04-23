@@ -130,6 +130,15 @@ class ConfigLoader:
         else:
             return config_item
     
+    def get_nvd_sources(self) -> List[Dict[str, Any]]:
+        """
+        Get NVD (National Vulnerability Database) source configurations.
+        
+        Returns:
+            List[Dict[str, Any]]: List of NVD source configurations
+        """
+        return self.config.get('nvd_sources', [])
+    
     def get_source_by_name(self, source_name: str) -> Optional[Dict[str, Any]]:
         """
         Get source configuration by name.
@@ -145,6 +154,7 @@ class ConfigLoader:
         all_sources.extend(self.get_database_sources())
         all_sources.extend(self.get_api_sources())
         all_sources.extend(self.get_kafka_sources())
+        all_sources.extend(self.get_nvd_sources())
         
         for source in all_sources:
             if source.get('name') == source_name:

@@ -122,6 +122,25 @@ api_sources:
       enabled: true
       ttl_seconds: 3600
 
+# NVD data sources (CVE information)
+nvd_sources:
+  - name: "nvd_cve_data"
+    type: "nvd"
+    api_key: "${NVD_API_KEY}"  # Optional: NVD API key for higher rate limits
+    delay_between_requests: 6  # Default delay in seconds to respect rate limits
+    results_per_page: 2000     # Number of results per page (max 2000)
+    max_pages: 5               # Optional: Limit number of pages to fetch
+    start_date: "2023-01-01T00:00:00.000"  # Optional: Start date for CVE filtering
+    end_date: "2023-12-31T23:59:59.999"    # Optional: End date for CVE filtering
+    additional_query_params:    # Optional: Additional query parameters
+      cvssV3Severity: "HIGH"    # Filter by CVSS V3 severity
+      # Other potential filters:
+      # keywordSearch: "log4j"  # Search for specific keywords
+      # isVulnerable: true      # Filter for confirmed vulnerabilities
+      # cveId: "CVE-2021-44228" # Filter for specific CVE ID
+    retention_period_days: 90  # How long to keep the data
+    enabled: true              # Whether this source is enabled
+
 # Kafka data sources
 kafka_sources:
   - name: "user_events"

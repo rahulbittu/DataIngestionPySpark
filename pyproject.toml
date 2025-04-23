@@ -20,4 +20,5 @@ dependencies = [
     "elasticsearch>=8.17.2",
     "pyhive>=0.7.0",
     "thrift>=0.21.0",
+    "trafilatura>=2.0.0",
 ]
