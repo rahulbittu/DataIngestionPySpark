@@ -85,7 +85,8 @@ class ConfigLoader:
             'file_sources': self.get_file_sources(),
             'database_sources': self.get_database_sources(),
             'api_sources': self.get_api_sources(),
-            'kafka_sources': self.get_kafka_sources()
+            'kafka_sources': self.get_kafka_sources(),
+            'nvd_sources': self.get_nvd_sources()
         }
     
     def get_classification_thresholds(self) -> Dict[str, Dict[str, float]]:

@@ -23,6 +23,7 @@ from src.connectors import (
 )
 from src.connectors.elasticsearch_connector import ElasticsearchConnector
 from src.connectors.hive_connector import HiveConnector
+from src.connectors.nvd_connector import NVDConnector
 from src.classifiers import DataClassifier
 from src.utils.config_loader import ConfigLoader
 from src.utils.logging_utils import log_dataframe_info, log_metrics
@@ -224,7 +225,7 @@ class DataIngestionPipeline:
         
         Args:
             source_config: Source configuration
-            source_type: Type of source ('file', 'database', 'api', 'kafka')
+            source_type: Type of source ('file', 'database', 'api', 'kafka', 'nvd')
             
         Returns:
             BaseConnector: Connector instance
@@ -242,6 +243,8 @@ class DataIngestionPipeline:
             return APIConnector(self.spark, source_config, self.logger)
         elif source_type == 'kafka':
             return KafkaConnector(self.spark, source_config, self.logger)
+        elif source_type == 'nvd':
+            return NVDConnector(self.spark, source_config, self.logger)
         else:
             raise ValueError(f"Invalid source type: {source_type}")
     
@@ -511,6 +514,30 @@ class DataIngestionPipeline:
                 
                 # For streaming sources, we don't have accurate record counts
                 # So we don't update the record counts here
+            else:
+                self.pipeline_metrics['sources_failed'] += 1
+                
+        # Process NVD sources
+        for source_config in all_sources.get('nvd_sources', []):
+            success, metrics = self.process_source(source_config, 'nvd')
+            if success:
+                self.pipeline_metrics['sources_processed'] += 1
+                source_metrics.append(metrics)
+                
+                # Update record counts
+                record_count = metrics.get('record_count', 0)
+                self.pipeline_metrics['records_processed'] += record_count
+                
+                # Update classification counts
+                classification = metrics.get('classification')
+                if classification == 'bronze':
+                    self.pipeline_metrics['bronze_count'] += record_count
+                elif classification == 'silver':
+                    self.pipeline_metrics['silver_count'] += record_count
+                elif classification == 'gold':
+                    self.pipeline_metrics['gold_count'] += record_count
+                elif classification == 'rejected':
+                    self.pipeline_metrics['rejected_count'] += record_count
             else:
                 self.pipeline_metrics['sources_failed'] += 1
         
