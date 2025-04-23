@@ -183,6 +183,28 @@ hive:
     - "month"
     - "day"
 
+# NVD (National Vulnerability Database) sources
+nvd_sources:
+  - name: "cve_data"
+    enabled: true
+    api_key: "${NVD_API_KEY}" # Optional API key for higher rate limits
+    delay_between_requests: 6 # Seconds between requests to avoid rate limiting
+    results_per_page: 2000 # Number of results per page
+    max_pages: 10 # Maximum number of pages to fetch (null for all)
+    start_date: "2023-01-01T00:00:00.000" # Optional start date
+    end_date: null # Optional end date (null for current date)
+    additional_query_params: # Additional query parameters for the NVD API
+      cpeMatchString: null # Optional CPE match string
+      cvssV2Metrics: null # Optional CVSS v2 metrics
+      cvssV3Metrics: null # Optional CVSS v3 metrics
+      keywordSearch: null # Optional keyword search
+    # Classification thresholds can be overridden per source
+    classification_thresholds:
+      bronze:
+        completeness: 0.6
+        accuracy: 0.6
+        timeliness: 0.7
+
 # Elasticsearch configuration (optional secondary data store)
 elasticsearch:
   hosts:
